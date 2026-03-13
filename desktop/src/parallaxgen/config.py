@@ -23,8 +23,8 @@ class QualityThresholds:
 class PipelineConfig:
     target_device: str = TARGET_DEVICE_NAME
     output_resolution: tuple[int, int] = TARGET_RENDER_RESOLUTION
-    depth_model: str = "midas_dpt_large"
-    segmentation_model: str = "birefnet_or_equivalent"
+    depth_model: str = "depth_anything_v2_large"
+    segmentation_model: str = "birefnet"
     overscan: float = 0.18
     parallax_strength: float = 0.65
     motion_profile: str = "cinematic_slow"
@@ -33,6 +33,7 @@ class PipelineConfig:
         default_factory=lambda: DEFAULT_DEPTH_WEIGHTS.copy()
     )
     blur_px: list[float] = field(default_factory=lambda: DEFAULT_LAYER_BLUR.copy())
+    max_blur_px: float = 6.0
     quality_thresholds: QualityThresholds = field(default_factory=QualityThresholds)
 
     def to_dict(self) -> dict[str, object]:

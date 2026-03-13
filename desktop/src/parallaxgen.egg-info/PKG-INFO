@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: parallaxgen
+Version: 0.1.0
+Summary: Desktop pipeline for generating spatial depth wallpaper packages
+Requires-Python: >=3.10
+Requires-Dist: numpy>=1.26
+Requires-Dist: opencv-python>=4.9
+Requires-Dist: pillow>=10.0
+Requires-Dist: torch>=2.2
+Requires-Dist: torchvision>=0.17
+Requires-Dist: transformers>=4.40
+Requires-Dist: tqdm>=4.66
+Requires-Dist: typer>=0.12
+Provides-Extra: inpaint
+Requires-Dist: simple-lama-inpainting>=0.1.2; extra == "inpaint"
+Provides-Extra: midas
+Requires-Dist: timm>=1.0; extra == "midas"

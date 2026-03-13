@@ -1,0 +1,20 @@
+{
+  "format": "parallaxgen-corpus-v2",
+  "wallpapers": [
+    {
+      "id": "desert-mountain-galaxy-wallpaper-by-one4wall-app",
+      "title": "Desert Mountain Galaxy",
+      "preview": "desert-mountain-galaxy-wallpaper-by-one4wall-app/preview.webp"
+    },
+    {
+      "id": "ocean-lagoon-wallpaper-for-iphone",
+      "title": "Ocean Lagoon",
+      "preview": "ocean-lagoon-wallpaper-for-iphone/preview.webp"
+    },
+    {
+      "id": "snowy-mountain-scene-ios-26-depth-effect-wallpaper",
+      "title": "Snowy Mountain",
+      "preview": "snowy-mountain-scene-ios-26-depth-effect-wallpaper/preview.webp"
+    }
+  ]
+}

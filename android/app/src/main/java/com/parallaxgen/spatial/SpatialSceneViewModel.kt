@@ -1,8 +1,23 @@
 package com.parallaxgen.spatial
 
-import androidx.lifecycle.ViewModel
-import com.parallaxgen.corpus.WallpaperMeta
+import android.app.Application
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
+import com.parallaxgen.corpus.CorpusManager
+import com.parallaxgen.corpus.WallpaperPackage
 
-class SpatialSceneViewModel : ViewModel() {
-    val meta = WallpaperMeta(id = "starter")
+private const val TAG = "SpatialSceneViewModel"
+
+class SpatialSceneViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val corpusManager = CorpusManager()
+
+    val packages: List<WallpaperPackage> by lazy {
+        corpusManager.loadCorpus(getApplication()).also {
+            Log.i(TAG, "Loaded ${it.size} wallpaper packages")
+        }
+    }
+
+    val selectedPackage: WallpaperPackage?
+        get() = packages.firstOrNull()
 }

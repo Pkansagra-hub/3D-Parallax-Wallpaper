@@ -1,0 +1,2 @@
+[console_scripts]
+parallaxgen = parallaxgen.cli:app

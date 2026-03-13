@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
+import sys
+import time
 from pathlib import Path
 
 import typer
+from tqdm import tqdm
 
 from parallaxgen.compose.scene_builder import build_scene_package
 from parallaxgen.config import PipelineConfig, build_pipeline_config
@@ -12,6 +16,16 @@ from parallaxgen.corpus.packer import pack_corpus_directory
 from parallaxgen.preview.preview_renderer import render_preview_summary
 
 app = typer.Typer(help="ParallaxGen desktop tooling")
+
+_LOG_FMT = "%(asctime)s  %(levelname)-5s  %(name)s  %(message)s"
+_LOG_DATE = "%H:%M:%S"
+
+
+def _setup_logging(verbose: bool = False) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level, format=_LOG_FMT, datefmt=_LOG_DATE, stream=sys.stderr
+    )
 
 
 def _resolve_config(
@@ -60,7 +74,9 @@ def process(
     title: str | None = typer.Option(None, help="Optional display title"),
     width: int = typer.Option(1440, help="Output width for exported assets."),
     height: int = typer.Option(3120, help="Output height for exported assets."),
-    depth_model: str = typer.Option("midas_dpt_large", help="Depth model name."),
+    depth_model: str = typer.Option(
+        "depth_anything_v2_large", help="Depth model name."
+    ),
     segmentation_model: str = typer.Option(
         "birefnet_or_equivalent", help="Segmentation model name."
     ),
@@ -88,6 +104,7 @@ def process(
     ),
 ) -> None:
     """Generate a starter wallpaper package from one image."""
+    _setup_logging()
     config = _resolve_config(
         width=width,
         height=height,
@@ -106,6 +123,7 @@ def process(
     wallpaper = build_scene_package(image_path=image, title=title, config=config)
     output.mkdir(parents=True, exist_ok=True)
     write_package_files(output, wallpaper)
+    build_manifest([wallpaper]).write(output / "index.json")
     typer.echo(f"Wrote wallpaper package to {output / wallpaper.wallpaper_id}")
 
 
@@ -115,7 +133,9 @@ def batch(
     output: Path = typer.Option(..., file_okay=False, dir_okay=True),
     width: int = typer.Option(1440, help="Output width for exported assets."),
     height: int = typer.Option(3120, help="Output height for exported assets."),
-    depth_model: str = typer.Option("midas_dpt_large", help="Depth model name."),
+    depth_model: str = typer.Option(
+        "depth_anything_v2_large", help="Depth model name."
+    ),
     segmentation_model: str = typer.Option(
         "birefnet_or_equivalent", help="Segmentation model name."
     ),
@@ -143,6 +163,7 @@ def batch(
     ),
 ) -> None:
     """Process every image in a directory using the starter pipeline."""
+    _setup_logging()
     config = _resolve_config(
         width=width,
         height=height,
@@ -160,16 +181,22 @@ def batch(
 
     output.mkdir(parents=True, exist_ok=True)
     supported = {".jpg", ".jpeg", ".png", ".webp"}
+    image_paths = sorted(
+        p for p in image_dir.iterdir() if p.suffix.lower() in supported
+    )
     wallpapers = []
-    for image_path in sorted(image_dir.iterdir()):
-        if image_path.suffix.lower() not in supported:
-            continue
+    t_batch = time.perf_counter()
+    for image_path in tqdm(image_paths, desc="Processing", unit="img"):
         wallpaper = build_scene_package(image_path=image_path, config=config)
         write_package_files(output, wallpaper)
         wallpapers.append(wallpaper)
 
     build_manifest(wallpapers).write(output / "index.json")
-    typer.echo(f"Processed {len(wallpapers)} image(s) into {output}")
+    elapsed = time.perf_counter() - t_batch
+    typer.echo(
+        f"Processed {len(wallpapers)} image(s) into {output}  "
+        f"({elapsed:.1f}s total, {elapsed / max(len(wallpapers), 1):.1f}s avg)"
+    )
 
 
 @app.command()
@@ -180,7 +207,9 @@ def preview(
     ),
     width: int = typer.Option(1440, help="Output width for exported assets."),
     height: int = typer.Option(3120, help="Output height for exported assets."),
-    depth_model: str = typer.Option("midas_dpt_large", help="Depth model name."),
+    depth_model: str = typer.Option(
+        "depth_anything_v2_large", help="Depth model name."
+    ),
     segmentation_model: str = typer.Option(
         "birefnet_or_equivalent", help="Segmentation model name."
     ),
@@ -238,6 +267,64 @@ def inspect(package_dir: Path = typer.Argument(..., exists=True)) -> None:
     """Print the meta.json from a generated wallpaper directory."""
     meta_path = package_dir / "meta.json" if package_dir.is_dir() else package_dir
     typer.echo(meta_path.read_text(encoding="utf-8"))
+
+
+@app.command()
+def benchmark(
+    image_dir: Path = typer.Argument(..., exists=True, file_okay=False, dir_okay=True),
+    width: int = typer.Option(1440, help="Output width."),
+    height: int = typer.Option(3120, help="Output height."),
+    depth_model: str = typer.Option("depth_anything_v2_large"),
+    segmentation_model: str = typer.Option("birefnet_or_equivalent"),
+) -> None:
+    """Benchmark the pipeline on every image in a directory.
+
+    Processes each image, collects per-stage timings, and prints a summary
+    table at the end.  Output packages are written to a temp directory and
+    discarded — this command is for measuring throughput only.
+    """
+    import tempfile
+
+    _setup_logging()
+    config = PipelineConfig(
+        output_resolution=(width, height),
+        depth_model=depth_model,
+        segmentation_model=segmentation_model,
+    )
+
+    supported = {".jpg", ".jpeg", ".png", ".webp"}
+    images = sorted(p for p in image_dir.iterdir() if p.suffix.lower() in supported)
+    if not images:
+        typer.echo("No images found.")
+        raise typer.Exit(1)
+
+    results: list[dict[str, object]] = []
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        for img in tqdm(images, desc="Benchmark", unit="img"):
+            t0 = time.perf_counter()
+            wp = build_scene_package(image_path=img, config=config)
+            elapsed = time.perf_counter() - t0
+            q = wp.meta.quality
+            passed = q.get("passed", False) if isinstance(q, dict) else False
+            results.append(
+                {"image": img.name, "time_s": round(elapsed, 2), "passed": passed}
+            )
+            write_package_files(tmp, wp)
+
+    # Summary table
+    typer.echo("")
+    typer.echo(f"{'Image':<60s}  {'Time':>6s}  {'QA':>4s}")
+    typer.echo("-" * 74)
+    total_t = 0.0
+    for r in results:
+        tag = "PASS" if r["passed"] else "WARN"
+        typer.echo(f"{r['image']:<60s}  {r['time_s']:>5.1f}s  {tag:>4s}")
+        total_t += float(r["time_s"])
+    typer.echo("-" * 74)
+    avg = total_t / len(results)
+    typer.echo(f"{'TOTAL':<60s}  {total_t:>5.1f}s")
+    typer.echo(f"{'AVG':<60s}  {avg:>5.1f}s")
 
 
 if __name__ == "__main__":

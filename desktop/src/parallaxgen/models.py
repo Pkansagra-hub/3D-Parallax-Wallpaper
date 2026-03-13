@@ -18,6 +18,15 @@ REQUIRED_SUPPORT_ASSETS = (
 )
 OPTIONAL_SUPPORT_ASSETS: tuple[str, ...] = ()
 
+# --- Clock rendering defaults (Android renderer consumes these) -----------
+# The clock is NOT a fixed overlay.  It is a render plane whose size, position,
+# and occlusion are driven by per-wallpaper metadata.  The Android renderer
+# draws it *between* layer_2_near_mid and layer_3_hero_fg so that the hero
+# subject can partially cover the digits — exactly like the Apple depth clock.
+DEFAULT_CLOCK_FONT_SCALE = 0.62  # relative to viewport width
+DEFAULT_CLOCK_ANCHOR = (0.50, 0.22)  # normalised (cx, cy) — centre of digits
+DEFAULT_CLOCK_WEIGHT = 0.24  # parallax motion weight for the clock plane
+
 
 @dataclass(frozen=True, slots=True)
 class PackageContract:
@@ -55,7 +64,29 @@ class LayerSpec:
 
 @dataclass(slots=True)
 class WallpaperMeta:
-    """Canonical `meta.json` payload for corpus v2 packages."""
+    """Canonical ``meta.json`` payload for corpus v2 packages.
+
+    Clock rendering fields
+    ----------------------
+    The Android renderer treats the clock as a **spatial render plane** inserted
+    between layer 2 (near midground) and layer 3 (hero foreground).  The
+    following fields tell the renderer how to size, place, and occlude the
+    clock per-wallpaper:
+
+    * ``clock_plane_index`` — render stack position (3 = after near_mid)
+    * ``clock_weight`` — parallax motion weight
+    * ``clock_font_scale`` — clock digit size relative to viewport width
+    * ``clock_anchor`` — normalised centre (cx, cy) of the clock within
+      ``safe_clock_rect``
+    * ``safe_clock_rect`` — normalised (l, t, r, b) bounding area where the
+      clock can be rendered without heavy subject occlusion
+    * ``has_clock_occlusion`` — if True the package ships a
+      ``clock_occlusion_mask.webp`` the renderer must apply so the hero
+      subject appears *in front of* the clock digits
+
+    All clock position / size values are **normalised** so the renderer can
+    scale to any device resolution.
+    """
 
     wallpaper_id: str
     version: int = PARALLAX_FORMAT_VERSION
@@ -69,15 +100,21 @@ class WallpaperMeta:
     depth_weights: list[float] = field(
         default_factory=lambda: DEFAULT_DEPTH_WEIGHTS.copy()
     )
-    clock_weight: float = 0.24
     blur_px: list[float] = field(default_factory=lambda: DEFAULT_LAYER_BLUR.copy())
+
+    # ---- Dynamic clock rendering metadata ----
+    clock_weight: float = DEFAULT_CLOCK_WEIGHT
+    clock_font_scale: float = DEFAULT_CLOCK_FONT_SCALE
+    clock_anchor: tuple[float, float] = DEFAULT_CLOCK_ANCHOR
     safe_clock_rect: tuple[float, float, float, float] = (0.16, 0.07, 0.84, 0.30)
+    has_clock_occlusion: bool = True
+
     focus_anchor: tuple[float, float] = (0.50, 0.36)
     subject_bbox: tuple[float, float, float, float] = (0.27, 0.14, 0.73, 0.87)
-    has_clock_occlusion: bool = True
     inpainted: bool = True
-    depth_model: str = "midas_dpt_large"
-    segmentation_model: str = "birefnet_or_equivalent"
+    depth_model: str = "depth_anything_v2_large"
+    segmentation_model: str = "birefnet"
+    quality: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -92,6 +129,7 @@ class WallpaperPackage:
     meta: WallpaperMeta
     layers: list[LayerSpec]
     preview_asset: str
+    rendered_assets: dict[str, bytes] = field(default_factory=dict, repr=False)
 
     @property
     def package_dir(self) -> str:
@@ -99,6 +137,25 @@ class WallpaperPackage:
 
     def required_asset_names(self) -> list[str]:
         return PACKAGE_CONTRACT.required_asset_names(self.layers)
+
+    def validate_rendered_assets(self) -> None:
+        expected = set(self.required_asset_names())
+        actual = set(self.rendered_assets)
+        missing = sorted(expected - actual)
+        if missing:
+            raise ValueError(
+                f"Missing rendered assets for package {self.wallpaper_id}: {missing}"
+            )
+
+        empty = sorted(
+            asset_name
+            for asset_name, payload in self.rendered_assets.items()
+            if not payload
+        )
+        if empty:
+            raise ValueError(
+                f"Empty rendered assets for package {self.wallpaper_id}: {empty}"
+            )
 
 
 @dataclass(slots=True)

@@ -6,22 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "parallaxgen"
 version = "0.1.0"
 description = "Desktop pipeline for generating spatial depth wallpaper packages"
-readme = "../project.md"
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.26",
-    "pillow>=10.0",
-    "typer>=0.12",
-]
-
-[project.optional-dependencies]
-ml = [
     "opencv-python>=4.9",
-    "simple-lama-inpainting>=0.1.2",
-    "timm>=1.0",
+    "pillow>=10.0",
     "torch>=2.2",
     "torchvision>=0.17",
+    "transformers>=4.40",
+    "kornia>=0.7",
+    "timm>=1.0",
     "tqdm>=4.66",
+    "typer>=0.12",
+    "simple-lama-inpainting>=0.1.2",
+    "depth-pro"
 ]
 
 [project.scripts]

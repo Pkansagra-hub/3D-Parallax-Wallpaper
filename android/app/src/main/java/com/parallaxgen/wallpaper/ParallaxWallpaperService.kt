@@ -7,7 +7,7 @@ import com.parallaxgen.corpus.WallpaperMeta
 class ParallaxWallpaperService : WallpaperService() {
     override fun onCreateEngine(): Engine = EngineImpl()
 
-    private class EngineImpl : Engine() {
+    private inner class EngineImpl : Engine() {
         private val engine = ParallaxWallpaperEngine()
 
         override fun onVisibilityChanged(visible: Boolean) {
