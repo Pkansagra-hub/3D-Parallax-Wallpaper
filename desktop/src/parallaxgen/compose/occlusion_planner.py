@@ -50,72 +50,138 @@ def build_clock_occlusion_mask(
     return mask
 
 
+def _clip_rect(
+    left: float,
+    top: float,
+    right: float,
+    bottom: float,
+) -> tuple[float, float, float, float]:
+    left = float(np.clip(left, 0.0, 1.0))
+    top = float(np.clip(top, 0.0, 1.0))
+    right = float(np.clip(right, 0.0, 1.0))
+    bottom = float(np.clip(bottom, 0.0, 1.0))
+    return (left, top, max(left + 1e-4, right), max(top + 1e-4, bottom))
+
+
+def _rect_region(
+    image: np.ndarray,
+    rect: tuple[float, float, float, float],
+) -> np.ndarray:
+    h, w = image.shape[:2]
+    l, t, r, b = rect
+    li, ti = int(l * w), int(t * h)
+    ri, bi = int(r * w), int(b * h)
+    if ri <= li or bi <= ti:
+        return np.zeros((0, 0), dtype=image.dtype)
+    return image[ti:bi, li:ri]
+
+
+def derive_clock_layout(
+    safe_rect: tuple[float, float, float, float],
+) -> tuple[tuple[float, float], float]:
+    """Derive clock anchor and font scale from the chosen safe rect.
+
+    The clock occupies a compact bounding window in metadata, while the actual
+    digits sit slightly below the rect centre.  Font scale is tied to the rect
+    width so Android can resize the clock proportionally across scenes.
+    """
+    l, t, r, b = safe_rect
+    rect_w = max(r - l, 1e-4)
+    rect_h = max(b - t, 1e-4)
+    anchor = (float((l + r) * 0.5), float(t + rect_h * 0.56))
+    font_scale = float(np.clip(rect_w * 0.92, 0.28, 0.56))
+    return anchor, font_scale
+
+
 def compute_safe_clock_rect(
     subject_alpha: np.ndarray,
     preferred_rect: tuple[float, float, float, float],
     threshold: float = 0.3,
+    depth_map: np.ndarray | None = None,
+    scene_type: str = "portrait",
 ) -> tuple[float, float, float, float]:
-    """Find the best unobstructed rectangle for clock placement.
+    """Find a compact, readable rectangle for clock placement.
 
-    If the preferred rect is mostly clear (<15 % occluded), return it as-is.
-    Otherwise scan the top 40 % of the image for the tallest contiguous
-    horizontal band with low occlusion and return that.
+    Rather than scanning full-width horizontal bands, evaluate many candidate
+    rectangles across the upper/mid frame and score them by:
+    - subject occlusion (must be low)
+    - depth smoothness/readability (prefer uniform background)
+    - mean depth for vista scenes (prefer farther, more sky/open-space zones)
+    - centrality / top bias for lock-screen ergonomics
+
+    This better matches the actual render model where the clock is its own
+    intermediate plane, not a full-width strip.
     """
     h, w = subject_alpha.shape
-    l, t, r, b = preferred_rect
-    region = subject_alpha[int(t * h) : int(b * h), int(l * w) : int(r * w)]
-    occlusion_ratio = float((region > threshold).mean())
 
-    if occlusion_ratio < 0.15:
-        return preferred_rect
+    def _occlusion_score(rect: tuple[float, float, float, float]) -> float:
+        region = _rect_region(subject_alpha, rect)
+        if region.size == 0:
+            return 1.0
+        return 1.0 - float((region > threshold).mean())
 
-    # Scan the top 40 % of the frame for a clear band
-    scan_bottom = int(h * 0.40)
-    top_region = subject_alpha[:scan_bottom, :]
-    row_occlusion = (top_region > threshold).mean(axis=1)
+    def _depth_stats(rect: tuple[float, float, float, float]) -> tuple[float, float]:
+        if depth_map is None:
+            return (0.5, 0.0)
+        region = _rect_region(depth_map, rect)
+        if region.size == 0:
+            return (0.5, 0.0)
+        return (float(region.mean()), float(region.std()))
 
-    clear = row_occlusion < 0.10
-    best_start, best_len, cur_start, cur_len = 0, 0, 0, 0
-    for i, is_clear in enumerate(clear):
-        if is_clear:
-            if cur_len == 0:
-                cur_start = i
-            cur_len += 1
-            if cur_len > best_len:
-                best_start, best_len = cur_start, cur_len
-        else:
-            cur_len = 0
+    pref_l, pref_t, pref_r, pref_b = preferred_rect
+    pref_cx = (pref_l + pref_r) * 0.5
 
-    min_band_height = int(h * 0.06)
-    if best_len >= min_band_height:
-        return (0.08, best_start / h, 0.92, (best_start + best_len) / h)
+    width_candidates = [0.34, 0.40, 0.46]
+    height_candidates = [0.10, 0.115, 0.13]
+    x_centres = [pref_cx, 0.50, 0.42, 0.58]
+    if scene_type == "vista":
+        y_centres = np.linspace(0.16, 0.42, 8)
+        target_y = 0.24
+    else:
+        y_centres = np.linspace(0.14, 0.34, 7)
+        target_y = 0.22
 
-    # --- Third fallback: scan bottom 20 % of the frame ---
-    bot_start = int(h * 0.80)
-    bot_region = subject_alpha[bot_start:, :]
-    bot_row_occ = (bot_region > threshold).mean(axis=1)
-    bot_clear = bot_row_occ < 0.10
-    b_best_start, b_best_len, b_cur_start, b_cur_len = 0, 0, 0, 0
-    for i, is_clear in enumerate(bot_clear):
-        if is_clear:
-            if b_cur_len == 0:
-                b_cur_start = i
-            b_cur_len += 1
-            if b_cur_len > b_best_len:
-                b_best_start, b_best_len = b_cur_start, b_cur_len
-        else:
-            b_cur_len = 0
+    best_rect = preferred_rect
+    best_score = -1e9
 
-    if b_best_len >= min_band_height:
-        abs_start = bot_start + b_best_start
-        return (0.08, abs_start / h, 0.92, (abs_start + b_best_len) / h)
+    for rect_w in width_candidates:
+        for rect_h in height_candidates:
+            for cx in x_centres:
+                for cy in y_centres:
+                    rect = _clip_rect(
+                        cx - rect_w * 0.5,
+                        cy - rect_h * 0.5,
+                        cx + rect_w * 0.5,
+                        cy + rect_h * 0.5,
+                    )
+                    occ_clear = _occlusion_score(rect)
+                    mean_depth, depth_std = _depth_stats(rect)
+                    top_bias = 1.0 - min(abs(cy - target_y) / 0.24, 1.0)
+                    centre_bias = 1.0 - min(abs(cx - 0.50) / 0.20, 1.0)
+                    smooth_bg = 1.0 - min(depth_std / 0.20, 1.0)
 
-    # No unobstructed zone found anywhere.  Return preferred rect but log
-    # a warning — the quality scorer will flag clock_readability.
+                    # Reject heavily occluded placements unless every option is bad.
+                    penalty = -3.0 if occ_clear < 0.88 else 0.0
+                    vista_depth_bonus = mean_depth if scene_type == "vista" else 0.0
+                    score = (
+                        occ_clear * 4.5
+                        + smooth_bg * 1.2
+                        + vista_depth_bonus * 0.8
+                        + top_bias * 0.8
+                        + centre_bias * 0.3
+                        + penalty
+                    )
+
+                    if score > best_score:
+                        best_score = score
+                        best_rect = rect
+
     import logging as _logging
 
-    _logging.getLogger(__name__).warning(
-        "No clear clock zone found (top + bottom scan failed); "
-        "returning preferred rect as fallback"
-    )
-    return preferred_rect
+    if _occlusion_score(best_rect) < 0.85:
+        _logging.getLogger(__name__).warning(
+            "Clock placement remains partially obstructed after candidate search; "
+            "using best available rect"
+        )
+
+    return best_rect

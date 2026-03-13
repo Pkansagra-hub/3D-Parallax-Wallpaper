@@ -8,6 +8,10 @@ from parallaxgen.compose.layer_planner import (
     classify_scene,
     plan_layers,
 )
+from parallaxgen.compose.occlusion_planner import (
+    compute_safe_clock_rect,
+    derive_clock_layout,
+)
 from parallaxgen.compose.quality_scorer import score_scene
 from parallaxgen.compose.scene_builder import build_scene_package
 from parallaxgen.config import PipelineConfig, build_pipeline_config
@@ -126,6 +130,38 @@ def test_scene_package_contains_non_empty_rendered_assets(tmp_path: Path) -> Non
     assert all(
         wallpaper.rendered_assets[name] for name in wallpaper.required_asset_names()
     )
+
+
+def test_clock_layout_is_derived_from_safe_rect() -> None:
+    rect = (0.30, 0.16, 0.70, 0.28)
+
+    anchor, font_scale = derive_clock_layout(rect)
+
+    assert 0.30 < anchor[0] < 0.70
+    assert 0.16 < anchor[1] < 0.28
+    assert 0.28 <= font_scale <= 0.56
+
+
+def test_clock_rect_prefers_compact_clear_window() -> None:
+    h, w = 200, 120
+    subject_alpha = np.zeros((h, w), dtype=np.float32)
+    # Block left and right sides in the upper half, leaving a clear centre gap.
+    subject_alpha[:90, :28] = 1.0
+    subject_alpha[:90, 92:] = 1.0
+    depth_map = np.tile(np.linspace(0.2, 0.95, h, dtype=np.float32)[:, None], (1, w))
+
+    rect = compute_safe_clock_rect(
+        subject_alpha,
+        preferred_rect=(0.16, 0.07, 0.84, 0.30),
+        depth_map=depth_map,
+        scene_type="vista",
+    )
+
+    l, t, r, b = rect
+    assert 0.25 <= l <= 0.35
+    assert 0.65 <= r <= 0.75
+    assert t < 0.35
+    assert (r - l) < 0.55
 
 
 def test_layer_planner_maps_far_band_to_far_depths() -> None:

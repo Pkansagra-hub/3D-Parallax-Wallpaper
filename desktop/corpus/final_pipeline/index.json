@@ -1,0 +1,20 @@
+{
+  "format": "parallaxgen-corpus-v2",
+  "wallpapers": [
+    {
+      "id": "desert-mountain-galaxy-wallpaper-by-one4wall-app",
+      "title": "Desert-Mountain-Galaxy-Wallpaper-By-One4Wall-App",
+      "preview": "desert-mountain-galaxy-wallpaper-by-one4wall-app/preview.webp"
+    },
+    {
+      "id": "desert-mountain-valley-galaxy-wallpaper-by-one4wall-app",
+      "title": "Desert-Mountain-Valley-Galaxy-Wallpaper-By-One4Wall-App",
+      "preview": "desert-mountain-valley-galaxy-wallpaper-by-one4wall-app/preview.webp"
+    },
+    {
+      "id": "mountain-valley-clouds-iphone-wallpaper",
+      "title": "Mountain-Valley-Clouds-Iphone-Wallpaper",
+      "preview": "mountain-valley-clouds-iphone-wallpaper/preview.webp"
+    }
+  ]
+}

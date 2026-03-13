@@ -5,20 +5,17 @@ import time
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
-
 from parallaxgen.compose.layer_planner import SceneType, plan_layers
 from parallaxgen.compose.occlusion_planner import (
     build_clock_occlusion_mask,
     compute_safe_clock_rect,
+    derive_clock_layout,
 )
 from parallaxgen.compose.quality_scorer import score_scene
 from parallaxgen.config import PipelineConfig
 from parallaxgen.depth.depth_runner import DepthRunner
 from parallaxgen.inpaint.inpainter import inpaint_background
 from parallaxgen.models import (
-    DEFAULT_CLOCK_ANCHOR,
-    DEFAULT_CLOCK_FONT_SCALE,
     DEFAULT_CLOCK_WEIGHT,
     PACKAGE_CONTRACT,
     WallpaperMeta,
@@ -35,6 +32,7 @@ from parallaxgen.utils.image_io import (
     load_image_canvas,
     mask_to_image,
 )
+from PIL import Image, ImageDraw, ImageFilter
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +260,13 @@ def build_scene_package(
         clock_occluder = planned_scene.layer_masks.get("layer_3_hero_fg", refined_alpha)
     else:
         clock_occluder = refined_alpha
-    safe_rect = compute_safe_clock_rect(clock_occluder, config.safe_clock_rect)
+    safe_rect = compute_safe_clock_rect(
+        clock_occluder,
+        config.safe_clock_rect,
+        depth_map=depth_result.depth_map,
+        scene_type=planned_scene.scene_type.value,
+    )
+    clock_anchor, clock_font_scale = derive_clock_layout(safe_rect)
 
     # --- Render all layer + support assets ---
     t0 = time.perf_counter()
@@ -310,8 +314,8 @@ def build_scene_package(
         depth_weights=config.depth_weights.copy(),
         blur_px=config.blur_px.copy(),
         clock_weight=DEFAULT_CLOCK_WEIGHT,
-        clock_font_scale=DEFAULT_CLOCK_FONT_SCALE,
-        clock_anchor=DEFAULT_CLOCK_ANCHOR,
+        clock_font_scale=clock_font_scale,
+        clock_anchor=clock_anchor,
         safe_clock_rect=safe_rect,
         has_clock_occlusion=True,
         subject_bbox=subject_mask.bbox,
