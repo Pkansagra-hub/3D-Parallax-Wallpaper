@@ -1,6 +1,7 @@
 package com.parallaxgen.corpus
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
@@ -8,6 +9,26 @@ import java.io.File
 private const val TAG = "CorpusLoader"
 
 class CorpusLoader {
+
+    private val requiredLayerFiles = listOf(
+        "layer_0_far_bg.webp",
+        "layer_1_deep_mid.webp",
+        "layer_2_near_mid.webp",
+        "layer_3_hero_fg.webp",
+        "layer_4_front_fx.webp",
+        "clock_occlusion_mask.webp",
+        "preview.webp",
+    )
+
+    private val minLayerBytesByFile = mapOf(
+        "layer_0_far_bg.webp" to 24_000L,
+        "layer_1_deep_mid.webp" to 12_000L,
+        "layer_2_near_mid.webp" to 12_000L,
+        "layer_3_hero_fg.webp" to 24_000L,
+        "layer_4_front_fx.webp" to 2_000L,
+        "clock_occlusion_mask.webp" to 1_000L,
+        "preview.webp" to 40_000L,
+    )
 
     /** Load a single wallpaper package from a filesystem directory containing meta.json. */
     fun loadPackage(dir: File): WallpaperMeta? {
@@ -18,7 +39,8 @@ class CorpusLoader {
         }
         return try {
             val json = JSONObject(metaFile.readText())
-            WallpaperMeta.fromJson(json)
+            val meta = WallpaperMeta.fromJson(json)
+            if (isValidDirectoryPackage(dir, meta)) meta else null
         } catch (e: Exception) {
             Log.w(TAG, "Skipping ${dir.name}: ${e.message}")
             null
@@ -31,10 +53,89 @@ class CorpusLoader {
         return try {
             val text = context.assets.open(path).bufferedReader().readText()
             val json = JSONObject(text)
-            WallpaperMeta.fromJson(json)
+            val meta = WallpaperMeta.fromJson(json)
+            if (isValidAssetPackage(context, wallpaperId, meta)) meta else null
         } catch (e: Exception) {
             Log.w(TAG, "Skipping asset $wallpaperId: ${e.message}")
             null
+        }
+    }
+
+    private fun isValidDirectoryPackage(dir: File, meta: WallpaperMeta): Boolean {
+        if (!passesMetaQualityGate(meta, dir.name)) return false
+        for (name in requiredLayerFiles) {
+            val file = File(dir, name)
+            val minBytes = minLayerBytesByFile[name] ?: 1L
+            if (!file.exists() || file.length() < minBytes) {
+                Log.w(TAG, "Skipping ${dir.name}: invalid file $name (${file.length()} bytes)")
+                return false
+            }
+            if (!hasRenderableImageBounds(file)) {
+                Log.w(TAG, "Skipping ${dir.name}: unreadable image $name")
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun isValidAssetPackage(context: Context, wallpaperId: String, meta: WallpaperMeta): Boolean {
+        if (!passesMetaQualityGate(meta, wallpaperId)) return false
+        for (name in requiredLayerFiles) {
+            val assetPath = "corpus/$wallpaperId/$name"
+            val bytes = try {
+                context.assets.open(assetPath).use { it.available().toLong() }
+            } catch (e: Exception) {
+                Log.w(TAG, "Skipping asset $wallpaperId: missing $name")
+                return false
+            }
+            val minBytes = minLayerBytesByFile[name] ?: 1L
+            if (bytes < minBytes) {
+                Log.w(TAG, "Skipping asset $wallpaperId: invalid file $name ($bytes bytes)")
+                return false
+            }
+            if (!hasRenderableImageBounds(context, assetPath)) {
+                Log.w(TAG, "Skipping asset $wallpaperId: unreadable image $name")
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun passesMetaQualityGate(meta: WallpaperMeta, packageId: String): Boolean {
+        if (meta.layerCount < 5 || meta.depthWeights.size < 5) {
+            Log.w(TAG, "Skipping $packageId: incomplete layer metadata")
+            return false
+        }
+        if (!meta.quality.passed) {
+            Log.w(TAG, "Skipping $packageId: quality gate did not pass")
+            return false
+        }
+        if (meta.quality.maskCleanliness < 0.70f) {
+            Log.w(TAG, "Skipping $packageId: mask cleanliness too low (${meta.quality.maskCleanliness})")
+            return false
+        }
+        return true
+    }
+
+    private fun hasRenderableImageBounds(file: File): Boolean {
+        return try {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, opts)
+            opts.outWidth >= 256 && opts.outHeight >= 256
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun hasRenderableImageBounds(context: Context, assetPath: String): Boolean {
+        return try {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.assets.open(assetPath).use { stream ->
+                BitmapFactory.decodeStream(stream, null, opts)
+            }
+            opts.outWidth >= 256 && opts.outHeight >= 256
+        } catch (_: Exception) {
+            false
         }
     }
 

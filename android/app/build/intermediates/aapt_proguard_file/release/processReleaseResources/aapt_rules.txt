@@ -1,0 +1,7 @@
+-keep class androidx.core.app.CoreComponentFactory { <init>(); }
+-keep class androidx.profileinstaller.ProfileInstallReceiver { <init>(); }
+-keep class androidx.startup.InitializationProvider { <init>(); }
+-keep class com.parallaxgen.spatial.SpatialSceneActivity { <init>(); }
+-keep class com.parallaxgen.ui.WallpaperPickerActivity { <init>(); }
+-keep class com.parallaxgen.ui.WallpaperPreviewActivity { <init>(); }
+-keep class com.parallaxgen.wallpaper.ParallaxWallpaperService { <init>(); }

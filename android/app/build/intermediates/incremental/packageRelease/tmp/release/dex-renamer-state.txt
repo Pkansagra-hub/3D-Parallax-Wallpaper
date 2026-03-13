@@ -1,0 +1,4 @@
+#Fri Mar 13 09:20:12 CDT 2026
+base.0=C\:\\Users\\princ\\3D-Parallax-Wallpaper\\android\\app\\build\\intermediates\\dex\\release\\minifyReleaseWithR8\\classes.dex
+renamed.0=classes.dex
+path.0=classes.dex

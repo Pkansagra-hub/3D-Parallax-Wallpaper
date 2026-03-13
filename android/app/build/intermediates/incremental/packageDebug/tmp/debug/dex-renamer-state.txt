@@ -1,7 +1,8 @@
-#Fri Mar 13 08:15:00 CDT 2026
+#Fri Mar 13 10:04:53 CDT 2026
 path.4=2/classes.dex
 path.3=14/classes.dex
 path.2=11/classes.dex
+renamed.9=classes10.dex
 path.1=0/classes.dex
 renamed.8=classes9.dex
 path.8=classes2.dex
@@ -18,6 +19,8 @@ renamed.3=classes4.dex
 renamed.2=classes3.dex
 renamed.1=classes2.dex
 renamed.0=classes.dex
+base.9=C\:\\Users\\princ\\3D-Parallax-Wallpaper\\android\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\4\\classes.dex
+path.9=4/classes.dex
 renamed.7=classes8.dex
 base.8=C\:\\Users\\princ\\3D-Parallax-Wallpaper\\android\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes2.dex
 renamed.6=classes7.dex

@@ -11,6 +11,9 @@ import java.io.File
 
 private const val TAG = "TextureLoader"
 
+/** Max texture dimension — downscale if source is larger to save GPU memory. */
+private const val MAX_TEXTURE_SIZE = 3120
+
 /** Holds GL texture IDs for a loaded wallpaper scene. */
 data class SceneTextures(
     val layers: List<Int>,           // 5 layer texture IDs (0–4)
@@ -41,21 +44,46 @@ class TextureLoader {
 
     /** Load a single texture from a package (assets or filesystem). */
     private fun loadTextureForPackage(context: Context, pkg: WallpaperPackage, filename: String): Int {
-        val bitmap = if (pkg.isAsset && pkg.assetBasePath != null) {
-            decodeBitmapFromAssets(context, "${pkg.assetBasePath}/$filename")
+        val bitmap = decodeBitmapForPackage(context, pkg, filename)
+            ?: return 0
+        return try {
+            uploadTexture(bitmap)
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "OOM loading $filename — retrying at 50% scale")
+            bitmap.recycle()
+            val halfBitmap = decodeBitmapForPackage(context, pkg, filename, sampleSize = 2)
+                ?: return 0
+            try {
+                uploadTexture(halfBitmap)
+            } catch (e2: OutOfMemoryError) {
+                Log.e(TAG, "OOM even at 50% — skipping $filename")
+                halfBitmap.recycle()
+                0
+            }
+        }
+    }
+
+    private fun decodeBitmapForPackage(
+        context: Context,
+        pkg: WallpaperPackage,
+        filename: String,
+        sampleSize: Int = 1,
+    ): Bitmap? {
+        return if (pkg.isAsset && pkg.assetBasePath != null) {
+            decodeBitmapFromAssets(context, "${pkg.assetBasePath}/$filename", sampleSize)
         } else if (pkg.directory != null) {
-            decodeBitmapFromFile(File(pkg.directory, filename))
+            decodeBitmapFromFile(File(pkg.directory, filename), sampleSize)
         } else {
             null
         }
-        return if (bitmap != null) uploadTexture(bitmap) else 0
     }
 
     /** Decode bitmap from assets. */
-    private fun decodeBitmapFromAssets(context: Context, path: String): Bitmap? {
+    private fun decodeBitmapFromAssets(context: Context, path: String, sampleSize: Int = 1): Bitmap? {
         return try {
+            val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
             context.assets.open(path).use { stream ->
-                BitmapFactory.decodeStream(stream)
+                BitmapFactory.decodeStream(stream, null, opts)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to decode asset: $path — ${e.message}")
@@ -64,13 +92,14 @@ class TextureLoader {
     }
 
     /** Decode bitmap from filesystem. */
-    private fun decodeBitmapFromFile(file: File): Bitmap? {
+    private fun decodeBitmapFromFile(file: File, sampleSize: Int = 1): Bitmap? {
         if (!file.exists()) {
             Log.w(TAG, "File not found: ${file.absolutePath}")
             return null
         }
         return try {
-            BitmapFactory.decodeFile(file.absolutePath)
+            val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            BitmapFactory.decodeFile(file.absolutePath, opts)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to decode file: ${file.absolutePath} — ${e.message}")
             null

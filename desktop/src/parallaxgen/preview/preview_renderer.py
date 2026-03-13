@@ -144,7 +144,12 @@ def render_preview_summary(
     alpha = refine_alpha(subject.alpha)
     safe_rect = compute_safe_clock_rect(alpha, config.safe_clock_rect)
 
-    quality = score_scene(depth.depth_map, alpha, safe_rect, config.quality_thresholds)
+    quality = score_scene(
+        depth.depth_map,
+        alpha,
+        safe_rect,
+        config.quality_thresholds,
+    )
 
     summary: dict[str, object] = {
         "image": image_path.name,

@@ -24,7 +24,7 @@ class SensorHandler(context: Context) : SensorEventListener {
     var listener: TiltListener? = null
 
     /** Multiplier applied to raw orientation radians before clamping. */
-    var sensitivity: Float = 2.5f
+    var sensitivity: Float = 1.6f
 
     private val sensorManager =
         context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -36,6 +36,7 @@ class SensorHandler(context: Context) : SensorEventListener {
         sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
     private val rotationMatrix = FloatArray(9)
+    private val adjustedRotationMatrix = FloatArray(9)
     private val orientation = FloatArray(3)
 
     /** True when using rotation vector, false when falling back to accelerometer. */
@@ -70,10 +71,16 @@ class SensorHandler(context: Context) : SensorEventListener {
 
     private fun handleRotationVector(event: SensorEvent) {
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-        SensorManager.getOrientation(rotationMatrix, orientation)
+        SensorManager.remapCoordinateSystem(
+            rotationMatrix,
+            SensorManager.AXIS_X,
+            SensorManager.AXIS_Z,
+            adjustedRotationMatrix,
+        )
+        SensorManager.getOrientation(adjustedRotationMatrix, orientation)
         // orientation[1] = pitch (forward/back), orientation[2] = roll (left/right)
         val tiltX = (orientation[2] * sensitivity).coerceIn(-1f, 1f)
-        val tiltY = (orientation[1] * sensitivity).coerceIn(-1f, 1f)
+        val tiltY = (-orientation[1] * sensitivity).coerceIn(-1f, 1f)
         listener?.onTiltChanged(tiltX, tiltY)
     }
 

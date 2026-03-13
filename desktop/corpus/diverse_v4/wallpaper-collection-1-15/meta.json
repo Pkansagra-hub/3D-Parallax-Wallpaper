@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "target_device": "Galaxy S26 Ultra",
+  "resolution": [
+    1440,
+    3120
+  ],
+  "layer_count": 5,
+  "clock_plane_index": 3,
+  "parallax_strength": 0.65,
+  "overscan": 0.18,
+  "motion_profile": "cinematic_slow",
+  "depth_weights": [
+    0.08,
+    0.18,
+    0.32,
+    0.48,
+    0.62
+  ],
+  "blur_px": [
+    1.2,
+    0.8,
+    0.3,
+    0.0,
+    0.0
+  ],
+  "clock_weight": 0.24,
+  "clock_font_scale": 0.62,
+  "clock_anchor": [
+    0.5,
+    0.22
+  ],
+  "safe_clock_rect": [
+    0.08,
+    0.0,
+    0.92,
+    0.20352564102564102
+  ],
+  "has_clock_occlusion": true,
+  "focus_anchor": [
+    0.5,
+    0.36
+  ],
+  "subject_bbox": [
+    0.08958333333333333,
+    0.1967948717948718,
+    0.9993055555555556,
+    0.9278846153846154
+  ],
+  "inpainted": true,
+  "depth_model": "depth_anything_v2_large",
+  "segmentation_model": "birefnet",
+  "quality": {
+    "depth_separation": 0.7416,
+    "mask_cleanliness": 0.887,
+    "clock_readability": 0.9977,
+    "plane_cohesion": 0.9036,
+    "foreground_cohesion": 1.0,
+    "front_shell_balance": 1.0,
+    "layer_differentiation": 0.9056,
+    "scene_type": "portrait",
+    "warnings": [],
+    "passed": true
+  },
+  "id": "wallpaper-collection-1-15"
+}

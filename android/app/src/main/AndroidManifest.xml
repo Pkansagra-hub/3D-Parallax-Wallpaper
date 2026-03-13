@@ -24,6 +24,11 @@
             android:name=".spatial.SpatialSceneActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.WallpaperPreviewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ParallaxGen" />
+
         <service
             android:name=".wallpaper.ParallaxWallpaperService"
             android:exported="true"
@@ -32,6 +37,9 @@
             <intent-filter>
                 <action android:name="android.service.wallpaper.WallpaperService" />
             </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper" />
         </service>
     </application>
 

@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "com.parallaxgen.app-debug-47:/drawable_wallpaper_thumb.xml.flat",
+        "source": "com.parallaxgen.app-main-49:/drawable/wallpaper_thumb.xml"
+    },
+    {
+        "merged": "com.parallaxgen.app-debug-47:/xml_wallpaper.xml.flat",
+        "source": "com.parallaxgen.app-main-49:/xml/wallpaper.xml"
+    }
+]

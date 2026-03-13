@@ -191,6 +191,8 @@
     <string name="template_percent"><ns2:g id="percentage">%1$d</ns2:g> percent.</string>
     <string name="tooltip_description">tooltip</string>
     <string name="tooltip_label">show tooltip</string>
+    <string name="wallpaper_description">3D parallax depth wallpaper with live clock and gyroscope
+        motion</string>
     <string name="wallpaper_service_name">ParallaxGen Spatial Wallpaper</string>
     <style name="DialogWindowTheme">
         <item name="android:windowClipToOutline">false</item>

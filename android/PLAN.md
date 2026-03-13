@@ -284,7 +284,7 @@ Final APK: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-re
 
 ---
 
-## Milestone 4: Clock Rendering System (A-11 through A-13)
+## Milestone 4: Clock Rendering System (A-11 through A-13) ✅ COMPLETE
 
 ### Issue A-11: Clock texture from Canvas
 
@@ -353,7 +353,7 @@ Final APK: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-re
 
 ---
 
-## Milestone 5: WallpaperService Integration (A-14 through A-15)
+## Milestone 5: WallpaperService Integration (A-14 through A-15) ✅ COMPLETE
 
 ### Issue A-14: Real WallpaperService with EGL context
 
@@ -403,7 +403,7 @@ Final APK: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-re
 
 ---
 
-## Milestone 6: Picker UI & Preview (A-16 through A-18)
+## Milestone 6: Picker UI & Preview (A-16 through A-18) ✅ COMPLETE
 
 ### Issue A-16: Wallpaper grid picker with preview thumbnails
 
@@ -460,7 +460,7 @@ Final APK: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-re
 
 ---
 
-## Milestone 7: Polish, Emulator Validation & APK Build (A-19 through A-22)
+## Milestone 7: Polish, Emulator Validation & APK Build (A-19 through A-22) ✅ COMPLETE
 
 ### Issue A-19: Performance profiling + battery optimization
 

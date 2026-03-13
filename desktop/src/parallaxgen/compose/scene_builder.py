@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from parallaxgen.compose.layer_planner import plan_layers
+from parallaxgen.compose.layer_planner import SceneType, plan_layers
 from parallaxgen.compose.occlusion_planner import (
     build_clock_occlusion_mask,
     compute_safe_clock_rect,
@@ -84,13 +84,14 @@ def _render_assets(
     subject_alpha: np.ndarray,
     layer_masks: dict[str, np.ndarray],
     safe_clock_rect: tuple[float, float, float, float],
+    is_vista: bool = False,
 ) -> dict[str, bytes]:
     width, height = config.output_resolution
     base_image = load_image_canvas(image_path, config.output_resolution)
 
-    # Inpaint the background so parallax shifts don't reveal a ghost subject.
-    # Skip for landscape mode (subject_alpha is all-zero).
-    if subject_alpha.max() < 0.01:
+    # VISTA mode: no inpainting — full original image is decomposed by depth.
+    # PORTRAIT mode: inpaint behind the subject for clean parallax reveals.
+    if is_vista or subject_alpha.max() < 0.01:
         inpainted_bg = base_image
     else:
         inpainted_bg = inpaint_background(base_image, subject_alpha, method="auto")
@@ -98,13 +99,17 @@ def _render_assets(
     # --- Adaptive DOF blur --------------------------------------------------
     # Compute per-layer Gaussian blur from actual depth band centres.
     # Far layers get more blur (simulating camera defocus), hero is sharp.
+    # In VISTA mode all 4 active layers are depth bands; in PORTRAIT mode
+    # only layers 0-2 are background bands and layer 3 is the subject.
     _depth_centres = [0.85, 0.55, 0.30, 0.0, 0.0]  # far→front approx
     if depth_map is not None:
-        for mask_key, idx in [
+        _depth_band_keys = [
             ("layer_0_far_bg", 0),
             ("layer_1_deep_mid", 1),
             ("layer_2_near_mid", 2),
-        ]:
+            ("layer_3_hero_fg", 3),
+        ]
+        for mask_key, idx in _depth_band_keys:
             m = layer_masks.get(mask_key)
             if m is not None and m.sum() > 0:
                 _depth_centres[idx] = float(
@@ -140,6 +145,9 @@ def _render_assets(
     far_bg_img = _apply_vignette(_dof_blur(inpainted_bg, 0)).convert("RGBA")
     deep_mid_img = _dof_blur(base_image, 1)
     near_mid_img = _dof_blur(base_image, 2)
+    # VISTA: hero layer is a depth band that needs DOF blur too.
+    # PORTRAIT: hero is the sharp subject — no blur.
+    hero_img = _dof_blur(base_image, 3) if is_vista else base_image
 
     # Front FX with chromatic aberration for cinematic lens feel.
     front_fx_layer = _apply_chromatic_aberration(
@@ -150,7 +158,7 @@ def _render_assets(
     preview = far_bg_img.copy()
     preview = alpha_composite_linear(preview, _alpha_layer(deep_mid_img, deep_mid_mask))
     preview = alpha_composite_linear(preview, _alpha_layer(near_mid_img, near_mid_mask))
-    preview = alpha_composite_linear(preview, _alpha_layer(base_image, hero_fg_mask))
+    preview = alpha_composite_linear(preview, _alpha_layer(hero_img, hero_fg_mask))
     preview = alpha_composite_linear(preview, front_fx_layer)
 
     # Draw clock region indicator on preview.
@@ -176,7 +184,7 @@ def _render_assets(
             _alpha_layer(near_mid_img, near_mid_mask), icc_profile=SRGB_ICC_PROFILE
         ),
         "layer_3_hero_fg.webp": encode_webp(
-            _alpha_layer(base_image, hero_fg_mask),
+            _alpha_layer(hero_img, hero_fg_mask),
             lossless=True,
             icc_profile=SRGB_ICC_PROFILE,
         ),
@@ -228,9 +236,6 @@ def build_scene_package(
         refined_alpha = refine_alpha(subject_mask.alpha)
         logger.info("%s  segment  %.2fs", wallpaper_id, time.perf_counter() - t0)
 
-    # --- Dynamic clock placement ---
-    safe_rect = compute_safe_clock_rect(refined_alpha, config.safe_clock_rect)
-
     # --- Depth-driven layer planning ---
     t0 = time.perf_counter()
     planned_scene = plan_layers(
@@ -238,8 +243,24 @@ def build_scene_package(
         config=config,
         depth_map=depth_result.depth_map,
         subject_alpha=refined_alpha,
+        is_landscape=subject_mask.is_landscape,
     )
-    logger.info("%s  plan  %.2fs", wallpaper_id, time.perf_counter() - t0)
+    is_vista = planned_scene.scene_type == SceneType.VISTA
+    logger.info(
+        "%s  plan  %.2fs  scene_type=%s",
+        wallpaper_id,
+        time.perf_counter() - t0,
+        planned_scene.scene_type.value,
+    )
+
+    # --- Dynamic clock placement ---
+    # For vista scenes, use the nearest depth band as the clock occluder
+    # instead of the subject mask (which may be terrain, not a compact object).
+    if is_vista:
+        clock_occluder = planned_scene.layer_masks.get("layer_3_hero_fg", refined_alpha)
+    else:
+        clock_occluder = refined_alpha
+    safe_rect = compute_safe_clock_rect(clock_occluder, config.safe_clock_rect)
 
     # --- Render all layer + support assets ---
     t0 = time.perf_counter()
@@ -250,6 +271,7 @@ def build_scene_package(
         subject_alpha=refined_alpha,
         layer_masks=planned_scene.layer_masks,
         safe_clock_rect=safe_rect,
+        is_vista=is_vista,
     )
     logger.info("%s  render  %.2fs", wallpaper_id, time.perf_counter() - t0)
 
@@ -259,6 +281,8 @@ def build_scene_package(
         refined_alpha,
         safe_rect,
         thresholds=config.quality_thresholds,
+        layer_masks=planned_scene.layer_masks,
+        scene_type=planned_scene.scene_type.value,
     )
     if quality_report.warnings:
         for w in quality_report.warnings:
@@ -291,7 +315,7 @@ def build_scene_package(
         subject_bbox=subject_mask.bbox,
         depth_model=config.depth_model,
         segmentation_model=config.segmentation_model,
-        inpainted=True,
+        inpainted=not is_vista,
         quality=quality_report.to_dict(),
     )
 
