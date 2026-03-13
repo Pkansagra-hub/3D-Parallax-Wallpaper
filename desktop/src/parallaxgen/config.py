@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import json
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from parallaxgen.models import (
@@ -29,7 +29,9 @@ class PipelineConfig:
     parallax_strength: float = 0.65
     motion_profile: str = "cinematic_slow"
     safe_clock_rect: tuple[float, float, float, float] = (0.16, 0.07, 0.84, 0.30)
-    depth_weights: list[float] = field(default_factory=lambda: DEFAULT_DEPTH_WEIGHTS.copy())
+    depth_weights: list[float] = field(
+        default_factory=lambda: DEFAULT_DEPTH_WEIGHTS.copy()
+    )
     blur_px: list[float] = field(default_factory=lambda: DEFAULT_LAYER_BLUR.copy())
     quality_thresholds: QualityThresholds = field(default_factory=QualityThresholds)
 

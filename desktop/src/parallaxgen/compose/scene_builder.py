@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from parallaxgen.config import PipelineConfig
 from parallaxgen.compose.layer_planner import plan_layers
+from parallaxgen.config import PipelineConfig
 from parallaxgen.depth.depth_runner import DepthRunner
 from parallaxgen.models import PACKAGE_CONTRACT, WallpaperMeta, WallpaperPackage
 from parallaxgen.segment.matte_refiner import refine_alpha

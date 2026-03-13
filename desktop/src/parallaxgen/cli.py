@@ -5,8 +5,8 @@ from pathlib import Path
 
 import typer
 
-from parallaxgen.config import PipelineConfig, build_pipeline_config
 from parallaxgen.compose.scene_builder import build_scene_package
+from parallaxgen.config import PipelineConfig, build_pipeline_config
 from parallaxgen.corpus.manifest import build_manifest, write_package_files
 from parallaxgen.corpus.packer import pack_corpus_directory
 from parallaxgen.preview.preview_renderer import render_preview_summary
@@ -43,7 +43,9 @@ def _resolve_config(
     )
 
 
-def _emit_config_debug(config: PipelineConfig, print_config: bool, config_out: Path | None) -> None:
+def _emit_config_debug(
+    config: PipelineConfig, print_config: bool, config_out: Path | None
+) -> None:
     if print_config:
         typer.echo(config.to_json())
     if config_out is not None:
@@ -69,11 +71,21 @@ def process(
         None,
         help="Clock safe rect as left,top,right,bottom normalized floats.",
     ),
-    min_depth_separation: float = typer.Option(0.18, help="Minimum depth separation threshold."),
-    min_subject_coverage: float = typer.Option(0.08, help="Minimum subject coverage threshold."),
-    min_clock_clearance: float = typer.Option(0.55, help="Minimum clock clearance threshold."),
-    print_config: bool = typer.Option(False, help="Print the resolved pipeline config."),
-    config_out: Path | None = typer.Option(None, help="Optional path to write resolved config JSON."),
+    min_depth_separation: float = typer.Option(
+        0.18, help="Minimum depth separation threshold."
+    ),
+    min_subject_coverage: float = typer.Option(
+        0.08, help="Minimum subject coverage threshold."
+    ),
+    min_clock_clearance: float = typer.Option(
+        0.55, help="Minimum clock clearance threshold."
+    ),
+    print_config: bool = typer.Option(
+        False, help="Print the resolved pipeline config."
+    ),
+    config_out: Path | None = typer.Option(
+        None, help="Optional path to write resolved config JSON."
+    ),
 ) -> None:
     """Generate a starter wallpaper package from one image."""
     config = _resolve_config(
@@ -114,11 +126,21 @@ def batch(
         None,
         help="Clock safe rect as left,top,right,bottom normalized floats.",
     ),
-    min_depth_separation: float = typer.Option(0.18, help="Minimum depth separation threshold."),
-    min_subject_coverage: float = typer.Option(0.08, help="Minimum subject coverage threshold."),
-    min_clock_clearance: float = typer.Option(0.55, help="Minimum clock clearance threshold."),
-    print_config: bool = typer.Option(False, help="Print the resolved pipeline config."),
-    config_out: Path | None = typer.Option(None, help="Optional path to write resolved config JSON."),
+    min_depth_separation: float = typer.Option(
+        0.18, help="Minimum depth separation threshold."
+    ),
+    min_subject_coverage: float = typer.Option(
+        0.08, help="Minimum subject coverage threshold."
+    ),
+    min_clock_clearance: float = typer.Option(
+        0.55, help="Minimum clock clearance threshold."
+    ),
+    print_config: bool = typer.Option(
+        False, help="Print the resolved pipeline config."
+    ),
+    config_out: Path | None = typer.Option(
+        None, help="Optional path to write resolved config JSON."
+    ),
 ) -> None:
     """Process every image in a directory using the starter pipeline."""
     config = _resolve_config(
@@ -169,9 +191,15 @@ def preview(
         None,
         help="Clock safe rect as left,top,right,bottom normalized floats.",
     ),
-    min_depth_separation: float = typer.Option(0.18, help="Minimum depth separation threshold."),
-    min_subject_coverage: float = typer.Option(0.08, help="Minimum subject coverage threshold."),
-    min_clock_clearance: float = typer.Option(0.55, help="Minimum clock clearance threshold."),
+    min_depth_separation: float = typer.Option(
+        0.18, help="Minimum depth separation threshold."
+    ),
+    min_subject_coverage: float = typer.Option(
+        0.08, help="Minimum subject coverage threshold."
+    ),
+    min_clock_clearance: float = typer.Option(
+        0.55, help="Minimum clock clearance threshold."
+    ),
 ) -> None:
     """Render a textual preview summary for one image."""
     config = _resolve_config(

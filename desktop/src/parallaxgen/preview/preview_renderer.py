@@ -4,6 +4,7 @@ from pathlib import Path
 
 from parallaxgen.config import PipelineConfig
 
+
 def render_preview_summary(
     image_path: Path,
     include_clock: bool,

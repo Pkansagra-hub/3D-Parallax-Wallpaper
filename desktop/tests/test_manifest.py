@@ -1,10 +1,14 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
-from parallaxgen.config import PipelineConfig, build_pipeline_config
 from parallaxgen.compose.scene_builder import build_scene_package
+from parallaxgen.config import PipelineConfig, build_pipeline_config
 from parallaxgen.corpus.manifest import build_manifest, write_package_files
-from parallaxgen.models import PACKAGE_CONTRACT, TARGET_DEVICE_NAME, TARGET_RENDER_RESOLUTION
+from parallaxgen.models import (
+    PACKAGE_CONTRACT,
+    TARGET_DEVICE_NAME,
+    TARGET_RENDER_RESOLUTION,
+)
 
 
 def test_manifest_contains_generated_wallpaper(tmp_path: Path) -> None:
@@ -37,7 +41,9 @@ def test_package_writer_uses_contract_asset_names(tmp_path: Path) -> None:
     write_package_files(output_dir, wallpaper)
 
     package_dir = output_dir / wallpaper.wallpaper_id
-    meta_payload = json.loads((package_dir / PACKAGE_CONTRACT.meta_filename).read_text(encoding="utf-8"))
+    meta_payload = json.loads(
+        (package_dir / PACKAGE_CONTRACT.meta_filename).read_text(encoding="utf-8")
+    )
 
     assert meta_payload["version"] == 2
     assert meta_payload["id"] == wallpaper.wallpaper_id

@@ -4,7 +4,6 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-
 PARALLAX_FORMAT_VERSION = 2
 PARALLAX_CORPUS_FORMAT = "parallaxgen-corpus-v2"
 TARGET_DEVICE_NAME = "Galaxy S26 Ultra"
@@ -34,7 +33,9 @@ class PackageContract:
     optional_support_assets: tuple[str, ...] = OPTIONAL_SUPPORT_ASSETS
 
     def required_asset_names(self, layers: list["LayerSpec"]) -> list[str]:
-        return [layer.file_name for layer in layers] + list(self.required_support_assets)
+        return [layer.file_name for layer in layers] + list(
+            self.required_support_assets
+        )
 
 
 PACKAGE_CONTRACT = PackageContract()
