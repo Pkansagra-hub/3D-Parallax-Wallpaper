@@ -1,0 +1,92 @@
+{
+    "servers": {
+        "github": {
+            "url": "https://api.githubcopilot.com/mcp/",
+            "type": "http"
+        },
+        "memory": {
+            "type": "stdio",
+            "command": "py",
+            "args": [
+                "-3",
+                "-u",
+                "D:\\familyos\\.github\\mcp\\memory_server.py"
+            ],
+            "cwd": "D:\\familyos",
+            "env": {
+                "MEM_DB": "D:\\familyos\\.github\\copilot-memories\\memories.sqlite3"
+            }
+        },
+        "kg_v2": {
+            "type": "stdio",
+            "command": "py",
+            "args": [
+                "-3",
+                "-u",
+                "D:\\familyos\\.github\\mcp\\kg_v2_server.py"
+            ],
+            "cwd": "D:\\familyos",
+            "env": {}
+        },
+        "mmd": {
+            "type": "stdio",
+            "command": "py",
+            "args": [
+                "-3",
+                "-u",
+                "D:\\familyos\\.github\\mcp\\mmd_mcp_server.py"
+            ],
+            "cwd": "D:\\familyos",
+            "env": {
+                "MMD_DB": "D:\\familyos\\.github\\copilot-memories\\mmd.sqlite3",
+                "MMD_ROOT": "D:\\familyos\\architecture_diagrams"
+            }
+        },
+        "adr_toolkit": {
+            "type": "stdio",
+            "command": "py",
+            "args": [
+                "-3",
+                "-u",
+                "D:\\familyos\\.github\\mcp\\adr_toolkit_server.py"
+            ],
+            "cwd": "D:\\familyos\\.github\\mcp",
+            "env": {
+                "ADR_ROOT": "D:\\familyos\\docs\\architecture\\decisions",
+                "ADR_CACHE_TTL": "3600"
+            }
+        }
+    },
+    "inputs": [
+        {
+            "id": "memory_file_path",
+            "type": "promptString",
+            "description": "Path to the memory storage file",
+            "password": false
+        },
+        {
+            "id": "mmd_db_path",
+            "type": "promptString",
+            "description": "Path to the Mermaid (MMD) SQLite DB file (will be created if missing)",
+            "password": false
+        },
+        {
+            "id": "mmd_root",
+            "type": "promptString",
+            "description": "Root folder to scan/ingest MMD diagrams from",
+            "password": false
+        },
+        {
+            "id": "kg_store_path",
+            "type": "promptString",
+            "description": "Path to the knowledge graph JSON store (will be created if missing)",
+            "password": false
+        },
+        {
+            "id": "kg_root",
+            "type": "promptString",
+            "description": "Root folder for diagram ingestion when using the knowledge graph MCP",
+            "password": false
+        }
+    ]
+}

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">ParallaxGen</string>
+    <string name="wallpaper_service_name">ParallaxGen Spatial Wallpaper</string>
+</resources>
