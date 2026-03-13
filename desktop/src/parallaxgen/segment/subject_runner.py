@@ -91,6 +91,16 @@ class SubjectRunner:
             ]
         )
 
+    def _inference_dtype(self) -> torch.dtype:
+        """Return the dtype expected by the loaded segmentation model."""
+        if self._model is None:
+            return torch.float32
+
+        try:
+            return next(self._model.parameters()).dtype
+        except StopIteration:
+            return torch.float32
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -115,6 +125,7 @@ class SubjectRunner:
         # Preprocess via torchvision transforms → (1, 3, 1024, 1024)
         assert self._processor is not None
         input_tensor = self._processor(image).unsqueeze(0).to(self.device)  # type: ignore[operator]
+        input_tensor = input_tensor.to(dtype=self._inference_dtype())
 
         # Inference
         assert self._model is not None
@@ -136,6 +147,8 @@ class SubjectRunner:
             mask_logits = mask_logits.unsqueeze(0).unsqueeze(0)
         elif mask_logits.dim() == 3:
             mask_logits = mask_logits.unsqueeze(0)
+
+        mask_logits = mask_logits.float()
 
         mask = torch.nn.functional.interpolate(
             mask_logits,

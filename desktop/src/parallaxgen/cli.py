@@ -7,13 +7,12 @@ import time
 from pathlib import Path
 
 import typer
-from tqdm import tqdm
-
 from parallaxgen.compose.scene_builder import build_scene_package
 from parallaxgen.config import PipelineConfig, build_pipeline_config
 from parallaxgen.corpus.manifest import build_manifest, write_package_files
 from parallaxgen.corpus.packer import pack_corpus_directory
 from parallaxgen.preview.preview_renderer import render_preview_summary
+from tqdm import tqdm
 
 app = typer.Typer(help="ParallaxGen desktop tooling")
 
@@ -77,9 +76,7 @@ def process(
     depth_model: str = typer.Option(
         "depth_anything_v2_large", help="Depth model name."
     ),
-    segmentation_model: str = typer.Option(
-        "birefnet_or_equivalent", help="Segmentation model name."
-    ),
+    segmentation_model: str = typer.Option("birefnet", help="Segmentation model name."),
     overscan: float = typer.Option(0.18, help="Overscan ratio."),
     parallax_strength: float = typer.Option(0.65, help="Parallax strength."),
     motion_profile: str = typer.Option("cinematic_slow", help="Motion profile name."),
@@ -136,9 +133,7 @@ def batch(
     depth_model: str = typer.Option(
         "depth_anything_v2_large", help="Depth model name."
     ),
-    segmentation_model: str = typer.Option(
-        "birefnet_or_equivalent", help="Segmentation model name."
-    ),
+    segmentation_model: str = typer.Option("birefnet", help="Segmentation model name."),
     overscan: float = typer.Option(0.18, help="Overscan ratio."),
     parallax_strength: float = typer.Option(0.65, help="Parallax strength."),
     motion_profile: str = typer.Option("cinematic_slow", help="Motion profile name."),
@@ -210,9 +205,7 @@ def preview(
     depth_model: str = typer.Option(
         "depth_anything_v2_large", help="Depth model name."
     ),
-    segmentation_model: str = typer.Option(
-        "birefnet_or_equivalent", help="Segmentation model name."
-    ),
+    segmentation_model: str = typer.Option("birefnet", help="Segmentation model name."),
     overscan: float = typer.Option(0.18, help="Overscan ratio."),
     parallax_strength: float = typer.Option(0.65, help="Parallax strength."),
     motion_profile: str = typer.Option("cinematic_slow", help="Motion profile name."),
@@ -275,7 +268,7 @@ def benchmark(
     width: int = typer.Option(1440, help="Output width."),
     height: int = typer.Option(3120, help="Output height."),
     depth_model: str = typer.Option("depth_anything_v2_large"),
-    segmentation_model: str = typer.Option("birefnet_or_equivalent"),
+    segmentation_model: str = typer.Option("birefnet"),
 ) -> None:
     """Benchmark the pipeline on every image in a directory.
 
