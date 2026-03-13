@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,8 +17,21 @@ logger = logging.getLogger(__name__)
 @contextlib.contextmanager
 def _quiet_hf_loading():
     """Suppress accelerate/transformers weight-materialisation tqdm spam."""
-    prev = os.environ.get("TQDM_DISABLE")
     os.environ["TQDM_DISABLE"] = "1"
+    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+    import tqdm.auto as _tqdm_auto
+
+    _orig_tqdm = _tqdm_auto.tqdm
+
+    class _SilentTqdm(_orig_tqdm):  # type: ignore[misc]
+        def __init__(self, *a, **kw):
+            kw["disable"] = True
+            super().__init__(*a, **kw)
+
+    _tqdm_auto.tqdm = _SilentTqdm  # type: ignore[misc]
+    _acc_mod = sys.modules.get("accelerate.utils.modeling")
+    if _acc_mod and hasattr(_acc_mod, "tqdm"):
+        _acc_mod.tqdm = _SilentTqdm  # type: ignore[attr-defined]
     try:
         import transformers.utils.logging as hf_log
 
@@ -25,10 +39,11 @@ def _quiet_hf_loading():
         yield
     finally:
         hf_log.set_verbosity_warning()
-        if prev is None:
-            os.environ.pop("TQDM_DISABLE", None)
-        else:
-            os.environ["TQDM_DISABLE"] = prev
+        _tqdm_auto.tqdm = _orig_tqdm
+        if _acc_mod and hasattr(_acc_mod, "tqdm"):
+            _acc_mod.tqdm = _orig_tqdm  # type: ignore[attr-defined]
+        os.environ.pop("TQDM_DISABLE", None)
+        os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
 
 
 _SEGMENTATION_REPOS: dict[str, str] = {

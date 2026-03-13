@@ -2,16 +2,23 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
+
+# Kill accelerate/transformers weight-loading tqdm spam before anything imports.
+os.environ["TQDM_DISABLE"] = "1"
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 import typer
 from parallaxgen.compose.scene_builder import build_scene_package
 from parallaxgen.config import PipelineConfig, build_pipeline_config
 from parallaxgen.corpus.manifest import build_manifest, write_package_files
 from parallaxgen.corpus.packer import pack_corpus_directory
+from parallaxgen.depth.depth_runner import DepthRunner
 from parallaxgen.preview.preview_renderer import render_preview_summary
+from parallaxgen.segment.subject_runner import SubjectRunner
 from tqdm import tqdm
 
 app = typer.Typer(help="ParallaxGen desktop tooling")
@@ -175,10 +182,26 @@ def batch(
     image_paths = sorted(
         p for p in image_dir.iterdir() if p.suffix.lower() in supported
     )
+
+    # Create shared runners ONCE — models load on first .infer() and stay
+    # in GPU memory for the entire batch.
+    depth_runner = DepthRunner(
+        model_name=config.depth_model,
+        output_resolution=config.output_resolution,
+    )
+    subject_runner = SubjectRunner(
+        model_name=config.segmentation_model,
+    )
+
     wallpapers = []
     t_batch = time.perf_counter()
     for image_path in tqdm(image_paths, desc="Processing", unit="img"):
-        wallpaper = build_scene_package(image_path=image_path, config=config)
+        wallpaper = build_scene_package(
+            image_path=image_path,
+            config=config,
+            depth_runner=depth_runner,
+            subject_runner=subject_runner,
+        )
         write_package_files(output, wallpaper)
         wallpapers.append(wallpaper)
 
@@ -288,9 +311,21 @@ def benchmark(
     results: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
+        depth_runner = DepthRunner(
+            model_name=config.depth_model,
+            output_resolution=config.output_resolution,
+        )
+        subject_runner = SubjectRunner(
+            model_name=config.segmentation_model,
+        )
         for img in tqdm(images, desc="Benchmark", unit="img"):
             t0 = time.perf_counter()
-            wp = build_scene_package(image_path=img, config=config)
+            wp = build_scene_package(
+                image_path=img,
+                config=config,
+                depth_runner=depth_runner,
+                subject_runner=subject_runner,
+            )
             elapsed = time.perf_counter() - t0
             q = wp.meta.quality
             passed = q.get("passed", False) if isinstance(q, dict) else False

@@ -20,6 +20,7 @@ dependencies = [
     "typer>=0.12",
     "diffusers>=0.31",
     "accelerate>=0.30",
+    "simple-lama-inpainting>=0.1.0",
 ]
 
 [project.scripts]
