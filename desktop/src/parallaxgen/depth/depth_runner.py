@@ -15,13 +15,18 @@ class DepthResult:
 
 
 class DepthRunner:
-    def __init__(self, model_name: str = "midas_dpt_large") -> None:
+    def __init__(
+        self,
+        model_name: str = "midas_dpt_large",
+        output_resolution: tuple[int, int] = (1440, 3120),
+    ) -> None:
         self.model_name = model_name
+        self.output_resolution = output_resolution
 
     def infer(self, image_path: Path) -> DepthResult:
         # Starter implementation returns a simple vertical ramp so the rest of the
         # package pipeline can be wired before the real model is integrated.
-        width, height = 1080, 2400
+        width, height = self.output_resolution
         depth_map = np.tile(
             np.linspace(0.0, 1.0, height, dtype=np.float32)[:, None], (1, width)
         )
