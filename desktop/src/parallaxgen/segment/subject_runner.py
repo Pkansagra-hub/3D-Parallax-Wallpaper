@@ -79,6 +79,15 @@ class SubjectRunner:
         )
         self._model.to(self.device).eval()  # type: ignore[union-attr]
 
+        if self.device.type == "cuda":
+            alloc = torch.cuda.memory_allocated() / (1024**3)
+            reserved = torch.cuda.memory_reserved() / (1024**3)
+            logger.info(
+                "GPU VRAM [BiRefNet loaded]: %.2f GB allocated, %.2f GB reserved",
+                alloc,
+                reserved,
+            )
+
         # BiRefNet uses torchvision transforms, not an HF image processor.
         # RMBG-2.0 also works best with manual transforms at 1024×1024.
         from torchvision import transforms

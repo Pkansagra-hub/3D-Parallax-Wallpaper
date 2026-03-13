@@ -10,6 +10,17 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+
+def _log_gpu_vram(label: str) -> None:
+    """Log current GPU VRAM usage if CUDA is available."""
+    if torch.cuda.is_available():
+        alloc = torch.cuda.memory_allocated() / (1024**3)
+        reserved = torch.cuda.memory_reserved() / (1024**3)
+        logger.info(
+            "GPU VRAM [%s]: %.2f GB allocated, %.2f GB reserved", label, alloc, reserved
+        )
+
+
 # ---------------------------------------------------------------------------
 # Model singletons — loaded once, reused across the entire batch.
 # Thread-safe via locks.
@@ -42,7 +53,7 @@ def _get_flux_pipe():
         )
         pipe.to("cuda")
         _flux_pipe = pipe
-        logger.info("FLUX.1 Depth inpainting loaded (~24 GB VRAM)")
+        _log_gpu_vram("FLUX.1 loaded")
         return _flux_pipe
 
 
@@ -321,9 +332,13 @@ def inpaint_background(
 
                 method = "flux"
             except ImportError:
+                logger.warning("diffusers not installed — FLUX unavailable, using LaMa")
                 method = "lama"
         else:
+            logger.info("No CUDA — using LaMa inpainting")
             method = "lama"
+
+    logger.info("Inpainting method: %s", method)
 
     if method in ("flux", "sdxl"):  # "sdxl" kept for backward compat
         try:
@@ -353,7 +368,11 @@ def inpaint_background(
             return Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8))
 
         except Exception as e:
-            logger.warning("FLUX inpainting failed (%s), falling back to LaMa", e)
+            logger.error(
+                "FLUX inpainting FAILED: %s — falling back to LaMa. "
+                "This means your output is NOT using SOTA inpainting!",
+                e,
+            )
             method = "lama"
 
     if method == "lama":

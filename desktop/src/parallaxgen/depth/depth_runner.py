@@ -50,6 +50,17 @@ class DepthRunner:
         self._processor: object | None = None
         self._backend: str = ""
 
+    def _log_vram(self, label: str) -> None:
+        if self.device.type == "cuda":
+            alloc = torch.cuda.memory_allocated() / (1024**3)
+            reserved = torch.cuda.memory_reserved() / (1024**3)
+            logger.info(
+                "GPU VRAM [%s]: %.2f GB allocated, %.2f GB reserved",
+                label,
+                alloc,
+                reserved,
+            )
+
     # ------------------------------------------------------------------
     # Lazy model loading
     # ------------------------------------------------------------------
@@ -83,6 +94,7 @@ class DepthRunner:
         )
         self._model.to(self.device).eval()  # type: ignore[union-attr]
         self._backend = "depth_anything"
+        self._log_vram("Depth Anything loaded")
 
     def _load_midas(self) -> None:
         logger.info("Loading MiDaS DPT-Large from torch hub on %s …", self.device)
@@ -108,6 +120,7 @@ class DepthRunner:
         )
         self._model.to(self.device).eval()  # type: ignore[union-attr]
         self._backend = "depth_pro"
+        self._log_vram("Depth Pro loaded")
 
     # ------------------------------------------------------------------
     # Public API
