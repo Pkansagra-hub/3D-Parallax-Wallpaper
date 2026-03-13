@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +11,25 @@ import torch
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def _quiet_hf_loading():
+    """Suppress accelerate/transformers weight-materialisation tqdm spam."""
+    prev = os.environ.get("TQDM_DISABLE")
+    os.environ["TQDM_DISABLE"] = "1"
+    try:
+        import transformers.utils.logging as hf_log
+
+        hf_log.set_verbosity_error()
+        yield
+    finally:
+        hf_log.set_verbosity_warning()
+        if prev is None:
+            os.environ.pop("TQDM_DISABLE", None)
+        else:
+            os.environ["TQDM_DISABLE"] = prev
+
 
 _SEGMENTATION_REPOS: dict[str, str] = {
     "birefnet": "ZhengPeng7/BiRefNet",
@@ -74,9 +95,10 @@ class SubjectRunner:
         logger.info("Loading %s from %s on %s …", self.model_name, repo, self.device)
 
         dtype = torch.float16 if self.device.type == "cuda" else torch.float32
-        self._model = AutoModelForImageSegmentation.from_pretrained(
-            repo, trust_remote_code=True, torch_dtype=dtype
-        )
+        with _quiet_hf_loading():
+            self._model = AutoModelForImageSegmentation.from_pretrained(
+                repo, trust_remote_code=True, torch_dtype=dtype
+            )
         self._model.to(self.device).eval()  # type: ignore[union-attr]
 
         if self.device.type == "cuda":

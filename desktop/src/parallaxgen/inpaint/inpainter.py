@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 import threading
 
 import cv2
@@ -9,6 +11,24 @@ import torch
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def _quiet_hf_loading():
+    """Suppress accelerate/transformers weight-materialisation tqdm spam."""
+    prev = os.environ.get("TQDM_DISABLE")
+    os.environ["TQDM_DISABLE"] = "1"
+    try:
+        import transformers.utils.logging as hf_log
+
+        hf_log.set_verbosity_error()
+        yield
+    finally:
+        hf_log.set_verbosity_warning()
+        if prev is None:
+            os.environ.pop("TQDM_DISABLE", None)
+        else:
+            os.environ["TQDM_DISABLE"] = prev
 
 
 def _log_gpu_vram(label: str) -> None:
@@ -47,10 +67,11 @@ def _get_flux_pipe():
         from diffusers import FluxControlInpaintPipeline
 
         logger.info("Loading FLUX.1 Depth inpainting from %s …", FLUX_INPAINT_REPO)
-        pipe = FluxControlInpaintPipeline.from_pretrained(
-            FLUX_INPAINT_REPO,
-            torch_dtype=torch.bfloat16,
-        )
+        with _quiet_hf_loading():
+            pipe = FluxControlInpaintPipeline.from_pretrained(
+                FLUX_INPAINT_REPO,
+                torch_dtype=torch.bfloat16,
+            )
         pipe.to("cuda")
         _flux_pipe = pipe
         _log_gpu_vram("FLUX.1 loaded")

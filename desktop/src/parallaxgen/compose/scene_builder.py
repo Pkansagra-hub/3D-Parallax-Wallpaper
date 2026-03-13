@@ -6,22 +6,32 @@ from pathlib import Path
 
 import numpy as np
 from parallaxgen.compose.layer_planner import SceneType, plan_layers
-from parallaxgen.compose.occlusion_planner import (build_clock_occlusion_mask,
-                                                   compute_safe_clock_rect,
-                                                   derive_clock_layout)
+from parallaxgen.compose.occlusion_planner import (
+    build_clock_occlusion_mask,
+    compute_safe_clock_rect,
+    derive_clock_layout,
+)
 from parallaxgen.compose.quality_scorer import score_scene
 from parallaxgen.config import PipelineConfig
 from parallaxgen.depth.depth_runner import DepthRunner
 from parallaxgen.inpaint.inpainter import inpaint_background
-from parallaxgen.models import (DEFAULT_CLOCK_WEIGHT, PACKAGE_CONTRACT,
-                                WallpaperMeta, WallpaperPackage)
+from parallaxgen.models import (
+    DEFAULT_CLOCK_WEIGHT,
+    PACKAGE_CONTRACT,
+    WallpaperMeta,
+    WallpaperPackage,
+)
 from parallaxgen.preview.preview_renderer import render_preview_grid
 from parallaxgen.segment.matte_refiner import refine_alpha
 from parallaxgen.segment.subject_runner import SubjectRunner
-from parallaxgen.utils.image_io import (SRGB_ICC_PROFILE,
-                                        alpha_composite_linear,
-                                        check_input_quality, encode_webp,
-                                        load_image_canvas, mask_to_image)
+from parallaxgen.utils.image_io import (
+    SRGB_ICC_PROFILE,
+    alpha_composite_linear,
+    check_input_quality,
+    encode_webp,
+    load_image_canvas,
+    mask_to_image,
+)
 from PIL import Image, ImageDraw, ImageFilter
 
 logger = logging.getLogger(__name__)
@@ -341,5 +351,4 @@ def build_scene_package(
         layers=planned_scene.layers,
         preview_asset=f"{wallpaper_id}/{PACKAGE_CONTRACT.required_support_assets[-1]}",
         rendered_assets=rendered_assets,
-    )
     )
