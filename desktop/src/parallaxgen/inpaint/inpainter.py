@@ -271,7 +271,8 @@ def _inpaint_sdxl(
     output[y0:y1, x0:x1] = np.clip(
         image_rgb[y0:y1, x0:x1].astype(np.float32) * (1.0 - crop_soft)
         + result_np.astype(np.float32) * crop_soft,
-        0, 255,
+        0,
+        255,
     ).astype(np.uint8)
     return output
 
@@ -310,6 +311,7 @@ def inpaint_background(
         if torch.cuda.is_available():
             try:
                 import diffusers  # noqa: F401
+
                 method = "sdxl"
             except ImportError:
                 method = "lama"
