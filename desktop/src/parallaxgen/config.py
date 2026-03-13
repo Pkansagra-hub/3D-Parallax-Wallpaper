@@ -23,7 +23,7 @@ class QualityThresholds:
 class PipelineConfig:
     target_device: str = TARGET_DEVICE_NAME
     output_resolution: tuple[int, int] = TARGET_RENDER_RESOLUTION
-    depth_model: str = "depth_anything_v2_large"
+    depth_model: str = "depth_pro"
     segmentation_model: str = "birefnet"
     overscan: float = 0.18
     parallax_strength: float = 0.65

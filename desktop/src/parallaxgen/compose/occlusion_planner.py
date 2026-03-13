@@ -104,7 +104,7 @@ def compute_safe_clock_rect(
 
     Rather than scanning full-width horizontal bands, evaluate many candidate
     rectangles across the upper/mid frame and score them by:
-    - subject occlusion (must be low)
+    - subject occlusion balance (some overlap is acceptable and often desirable)
     - depth smoothness/readability (prefer uniform background)
     - mean depth for vista scenes (prefer farther, more sky/open-space zones)
     - centrality / top bias for lock-screen ergonomics
@@ -155,16 +155,23 @@ def compute_safe_clock_rect(
                         cy + rect_h * 0.5,
                     )
                     occ_clear = _occlusion_score(rect)
+                    overlap_ratio = 1.0 - occ_clear
                     mean_depth, depth_std = _depth_stats(rect)
                     top_bias = 1.0 - min(abs(cy - target_y) / 0.24, 1.0)
                     centre_bias = 1.0 - min(abs(cx - 0.50) / 0.20, 1.0)
                     smooth_bg = 1.0 - min(depth_std / 0.20, 1.0)
 
-                    # Reject heavily occluded placements unless every option is bad.
-                    penalty = -3.0 if occ_clear < 0.88 else 0.0
+                    target_overlap = 0.20 if scene_type == "vista" else 0.14
+                    overlap_balance = 1.0 - min(
+                        abs(overlap_ratio - target_overlap) / 0.22,
+                        1.0,
+                    )
+                    visible_ratio = occ_clear
+                    penalty = -3.0 if visible_ratio < 0.18 else 0.0
                     vista_depth_bonus = mean_depth if scene_type == "vista" else 0.0
                     score = (
-                        occ_clear * 4.5
+                        overlap_balance * 1.8
+                        + visible_ratio * 2.0
                         + smooth_bg * 1.2
                         + vista_depth_bonus * 0.8
                         + top_bias * 0.8
@@ -175,13 +182,5 @@ def compute_safe_clock_rect(
                     if score > best_score:
                         best_score = score
                         best_rect = rect
-
-    import logging as _logging
-
-    if _occlusion_score(best_rect) < 0.85:
-        _logging.getLogger(__name__).warning(
-            "Clock placement remains partially obstructed after candidate search; "
-            "using best available rect"
-        )
 
     return best_rect

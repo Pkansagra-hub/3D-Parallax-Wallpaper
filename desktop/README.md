@@ -15,7 +15,7 @@ Target device: **Samsung Galaxy S26 Ultra** (1440 × 3120).
 |-----------|---------|-------------|
 | Python | 3.10+ | 3.13 |
 | GPU | — (CPU works) | NVIDIA with CUDA 12+ |
-| VRAM | — | ≥ 6 GB (Depth Anything V2 Large + BiRefNet) |
+| VRAM | — | ≥ 24 GB (Depth Pro + BiRefNet + FLUX.1-Depth inpaint) |
 | RAM | 8 GB | 16 GB |
 | Disk | ~4 GB (model cache) | SSD |
 
@@ -101,8 +101,8 @@ parallaxgen inspect corpus/desert_mountains/
 |------|---------|-------------|
 | `--width` | 1440 | Output width in pixels |
 | `--height` | 3120 | Output height in pixels |
-| `--depth-model` | `depth_anything_v2_large` | Depth estimation model |
-| `--segmentation-model` | `birefnet_or_equivalent` | Subject segmentation model |
+| `--depth-model` | `depth_pro` | Depth estimation model |
+| `--segmentation-model` | `birefnet` | Subject segmentation model |
 | `--overscan` | 0.18 | Extra canvas for parallax shift headroom |
 | `--parallax-strength` | 0.65 | Overall motion intensity |
 

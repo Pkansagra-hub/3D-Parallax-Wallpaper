@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
-
 from parallaxgen.config import QualityThresholds
 
 
@@ -102,16 +101,20 @@ def score_scene(
     if cleanliness < thresholds.min_subject_coverage:
         warnings.append(f"Noisy subject mask edges: {cleanliness:.2f}")
 
-    # --- 3. Clock readability: clearance in the safe rect ---
+    # --- 3. Clock readability: partial occlusion is valid, but a mostly hidden
+    # clock is not.  The Apple-style effect expects foreground overlap.
     h, w = subject_alpha.shape
     l, t, r, b = safe_clock_rect
     clock_region = subject_alpha[int(t * h) : int(b * h), int(l * w) : int(r * w)]
     if clock_region.size > 0:
-        clock_score = 1.0 - float((clock_region > 0.3).mean())
+        visible_ratio = 1.0 - float((clock_region > 0.3).mean())
     else:
-        clock_score = 1.0
-    if clock_score < thresholds.min_clock_clearance:
-        warnings.append(f"Clock zone obstructed: {clock_score:.2f}")
+        visible_ratio = 1.0
+
+    min_visible_ratio = max(0.18, thresholds.min_clock_clearance * 0.35)
+    clock_score = float(np.clip(visible_ratio / min_visible_ratio, 0.0, 1.0))
+    if visible_ratio < min_visible_ratio:
+        warnings.append(f"Clock mostly hidden: {visible_ratio:.2f} visible")
 
     plane_cohesion = 1.0
     foreground_cohesion = 1.0

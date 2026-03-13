@@ -77,7 +77,10 @@ class DepthRunner:
         repo = _DEPTH_ANYTHING_REPOS[self.model_name]
         logger.info("Loading %s from %s on %s …", self.model_name, repo, self.device)
         self._processor = AutoImageProcessor.from_pretrained(repo)
-        self._model = AutoModelForDepthEstimation.from_pretrained(repo)
+        dtype = torch.float16 if self.device.type == "cuda" else torch.float32
+        self._model = AutoModelForDepthEstimation.from_pretrained(
+            repo, torch_dtype=dtype
+        )
         self._model.to(self.device).eval()  # type: ignore[union-attr]
         self._backend = "depth_anything"
 
@@ -92,14 +95,16 @@ class DepthRunner:
         self._backend = "midas"
 
     def _load_depth_pro(self) -> None:
-        from transformers import AutoImageProcessor, DepthProForDepthEstimation
+        from transformers import DepthProForDepthEstimation, DepthProImageProcessorFast
 
         repo = "apple/DepthPro-hf"
         logger.info("Loading Depth Pro from %s on %s …", repo, self.device)
-        self._processor = AutoImageProcessor.from_pretrained(repo)
+        self._processor = DepthProImageProcessorFast.from_pretrained(repo)
+        dtype = torch.float16 if self.device.type == "cuda" else torch.float32
         self._model = DepthProForDepthEstimation.from_pretrained(
             repo,
             use_fov_model=False,
+            torch_dtype=dtype,
         )
         self._model.to(self.device).eval()  # type: ignore[union-attr]
         self._backend = "depth_pro"

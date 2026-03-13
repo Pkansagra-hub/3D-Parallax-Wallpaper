@@ -73,8 +73,9 @@ class SubjectRunner:
         repo = _SEGMENTATION_REPOS[self.model_name]
         logger.info("Loading %s from %s on %s …", self.model_name, repo, self.device)
 
+        dtype = torch.float16 if self.device.type == "cuda" else torch.float32
         self._model = AutoModelForImageSegmentation.from_pretrained(
-            repo, trust_remote_code=True
+            repo, trust_remote_code=True, torch_dtype=dtype
         )
         self._model.to(self.device).eval()  # type: ignore[union-attr]
 

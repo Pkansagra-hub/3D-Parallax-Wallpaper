@@ -73,9 +73,7 @@ def process(
     title: str | None = typer.Option(None, help="Optional display title"),
     width: int = typer.Option(1440, help="Output width for exported assets."),
     height: int = typer.Option(3120, help="Output height for exported assets."),
-    depth_model: str = typer.Option(
-        "depth_anything_v2_large", help="Depth model name."
-    ),
+    depth_model: str = typer.Option("depth_pro", help="Depth model name."),
     segmentation_model: str = typer.Option("birefnet", help="Segmentation model name."),
     overscan: float = typer.Option(0.18, help="Overscan ratio."),
     parallax_strength: float = typer.Option(0.65, help="Parallax strength."),
@@ -130,9 +128,7 @@ def batch(
     output: Path = typer.Option(..., file_okay=False, dir_okay=True),
     width: int = typer.Option(1440, help="Output width for exported assets."),
     height: int = typer.Option(3120, help="Output height for exported assets."),
-    depth_model: str = typer.Option(
-        "depth_anything_v2_large", help="Depth model name."
-    ),
+    depth_model: str = typer.Option("depth_pro", help="Depth model name."),
     segmentation_model: str = typer.Option("birefnet", help="Segmentation model name."),
     overscan: float = typer.Option(0.18, help="Overscan ratio."),
     parallax_strength: float = typer.Option(0.65, help="Parallax strength."),
@@ -202,9 +198,7 @@ def preview(
     ),
     width: int = typer.Option(1440, help="Output width for exported assets."),
     height: int = typer.Option(3120, help="Output height for exported assets."),
-    depth_model: str = typer.Option(
-        "depth_anything_v2_large", help="Depth model name."
-    ),
+    depth_model: str = typer.Option("depth_pro", help="Depth model name."),
     segmentation_model: str = typer.Option("birefnet", help="Segmentation model name."),
     overscan: float = typer.Option(0.18, help="Overscan ratio."),
     parallax_strength: float = typer.Option(0.65, help="Parallax strength."),
@@ -267,7 +261,7 @@ def benchmark(
     image_dir: Path = typer.Argument(..., exists=True, file_okay=False, dir_okay=True),
     width: int = typer.Option(1440, help="Output width."),
     height: int = typer.Option(3120, help="Output height."),
-    depth_model: str = typer.Option("depth_anything_v2_large"),
+    depth_model: str = typer.Option("depth_pro"),
     segmentation_model: str = typer.Option("birefnet"),
 ) -> None:
     """Benchmark the pipeline on every image in a directory.

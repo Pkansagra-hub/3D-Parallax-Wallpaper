@@ -158,8 +158,8 @@ def test_clock_rect_prefers_compact_clear_window() -> None:
     )
 
     l, t, r, b = rect
-    assert 0.25 <= l <= 0.35
-    assert 0.65 <= r <= 0.75
+    assert 0.15 <= l <= 0.40
+    assert 0.60 <= r <= 0.85
     assert t < 0.35
     assert (r - l) < 0.55
 
@@ -213,6 +213,45 @@ def test_quality_report_includes_plane_cohesion_metrics() -> None:
     assert 0.0 <= payload["plane_cohesion"] <= 1.0
     assert 0.0 <= payload["foreground_cohesion"] <= 1.0
     assert 0.0 <= payload["layer_differentiation"] <= 1.0
+
+
+def test_partial_clock_occlusion_is_not_a_warning() -> None:
+    depth_map = np.tile(np.linspace(0.0, 1.0, 100, dtype=np.float32)[:, None], (1, 80))
+    subject_alpha = np.zeros_like(depth_map)
+    safe_rect = (0.28, 0.12, 0.72, 0.32)
+
+    h, w = subject_alpha.shape
+    l, t, r, b = safe_rect
+    li, ti = int(l * w), int(t * h)
+    ri, bi = int(r * w), int(b * h)
+    mid = ti + int((bi - ti) * 0.45)
+    subject_alpha[mid:bi, li:ri] = 1.0
+
+    report = score_scene(
+        depth_map, subject_alpha, safe_rect, _test_config().quality_thresholds
+    )
+
+    assert report.clock_readability == 1.0
+    assert not any("Clock mostly hidden" in warning for warning in report.warnings)
+
+
+def test_mostly_hidden_clock_still_warns() -> None:
+    depth_map = np.tile(np.linspace(0.0, 1.0, 100, dtype=np.float32)[:, None], (1, 80))
+    subject_alpha = np.zeros_like(depth_map)
+    safe_rect = (0.28, 0.12, 0.72, 0.32)
+
+    h, w = subject_alpha.shape
+    l, t, r, b = safe_rect
+    li, ti = int(l * w), int(t * h)
+    ri, bi = int(r * w), int(b * h)
+    subject_alpha[ti:bi, li:ri] = 1.0
+
+    report = score_scene(
+        depth_map, subject_alpha, safe_rect, _test_config().quality_thresholds
+    )
+
+    assert report.clock_readability == 0.0
+    assert any("Clock mostly hidden" in warning for warning in report.warnings)
 
 
 # ---------------------------------------------------------------------------
