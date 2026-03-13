@@ -94,7 +94,9 @@ def _render_assets(
     if is_vista or subject_alpha.max() < 0.01:
         inpainted_bg = base_image
     else:
-        inpainted_bg = inpaint_background(base_image, subject_alpha, method="auto")
+        inpainted_bg = inpaint_background(
+            base_image, subject_alpha, depth_map=depth_map, method="auto"
+        )
 
     # --- Adaptive DOF blur --------------------------------------------------
     # Compute per-layer Gaussian blur from actual depth band centres.

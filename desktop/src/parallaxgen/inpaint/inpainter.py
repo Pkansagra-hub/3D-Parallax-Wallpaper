@@ -15,41 +15,35 @@ logger = logging.getLogger(__name__)
 # Thread-safe via locks.
 # ---------------------------------------------------------------------------
 
-_sdxl_pipe = None
-_sdxl_lock = threading.Lock()
+_flux_pipe = None
+_flux_lock = threading.Lock()
 _lama_model = None
 _lama_lock = threading.Lock()
 
-SDXL_INPAINT_REPO = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+FLUX_INPAINT_REPO = "black-forest-labs/FLUX.1-Depth-dev"
 
 
-def _get_sdxl_pipe():
-    """Lazy-load SDXL inpainting pipeline (singleton, ~6 GB VRAM)."""
-    global _sdxl_pipe
-    if _sdxl_pipe is not None:
-        return _sdxl_pipe
+def _get_flux_pipe():
+    """Lazy-load FLUX.1 Depth inpainting pipeline (singleton, ~24 GB VRAM bf16)."""
+    global _flux_pipe
+    if _flux_pipe is not None:
+        return _flux_pipe
 
-    with _sdxl_lock:
-        if _sdxl_pipe is not None:
-            return _sdxl_pipe
+    with _flux_lock:
+        if _flux_pipe is not None:
+            return _flux_pipe
 
-        from diffusers import StableDiffusionXLInpaintPipeline
+        from diffusers import FluxControlInpaintPipeline
 
-        logger.info("Loading SDXL inpainting from %s …", SDXL_INPAINT_REPO)
-        pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
-            SDXL_INPAINT_REPO,
-            torch_dtype=torch.float16,
-            variant="fp16",
+        logger.info("Loading FLUX.1 Depth inpainting from %s …", FLUX_INPAINT_REPO)
+        pipe = FluxControlInpaintPipeline.from_pretrained(
+            FLUX_INPAINT_REPO,
+            torch_dtype=torch.bfloat16,
         )
         pipe.to("cuda")
-        # Enable memory-efficient attention if available.
-        try:
-            pipe.enable_xformers_memory_efficient_attention()
-        except Exception:
-            pass
-        _sdxl_pipe = pipe
-        logger.info("SDXL inpainting loaded")
-        return _sdxl_pipe
+        _flux_pipe = pipe
+        logger.info("FLUX.1 Depth inpainting loaded (~24 GB VRAM)")
+        return _flux_pipe
 
 
 def _get_lama_model():
@@ -191,69 +185,75 @@ def _inpaint_lama(image_rgb: np.ndarray, mask_u8: np.ndarray) -> np.ndarray:
     return np.array(result.convert("RGB"))
 
 
-# Scene-aware prompts for SDXL — derived from PORTRAIT context since
-# VISTA scenes skip inpainting entirely.
-_SDXL_PROMPT = (
-    "clean natural background, seamless continuation of surroundings, "
-    "high quality wallpaper photograph, no people, no text, no objects, "
-    "consistent lighting, sharp details"
-)
-_SDXL_NEGATIVE = (
-    "text, watermark, logo, person, face, hand, body, fingers, limbs, "
-    "artifact, blur, noise, low quality, jpeg artifacts, deformed, "
-    "extra objects, unnatural colors, seam, border"
+# Scene-aware prompt for FLUX.1 — PORTRAIT context since VISTA skips inpainting.
+# FLUX.1 uses T5-XXL which handles natural language well; no negative prompt needed.
+_FLUX_PROMPT = (
+    "seamless natural background continuation, photorealistic, "
+    "consistent lighting and color temperature with surroundings, "
+    "sharp details, high quality photograph, no people, no text, no watermark"
 )
 
 
-def _inpaint_sdxl(
+def _inpaint_flux(
     image_rgb: np.ndarray,
     mask_u8: np.ndarray,
     soft_mask: np.ndarray,
+    depth_map: np.ndarray | None = None,
     guidance_rgb: np.ndarray | None = None,
-    strength: float = 0.58,
-    guidance_scale: float = 8.0,
-    num_steps: int = 30,
+    strength: float = 0.85,
+    guidance_scale: float = 10.0,
+    num_steps: int = 28,
 ) -> np.ndarray:
-    """SDXL inpainting with context crop + guidance image + soft paste-back.
+    """FLUX.1 Depth inpainting with depth control + context crop + soft paste-back.
 
     When *guidance_rgb* is provided (e.g. from a CV2 pre-fill), it's used as
-    the init image so SD only corrects semantics rather than generating from
-    noise.  The *soft_mask* is used for blending the crop back into the full
-    image to avoid hard rectangular seams at crop boundaries.
+    the init image so FLUX refines semantics while preserving color/tone.
+    The *depth_map* (float32 [0,1]) is passed as a structural control signal
+    so the inpainted region respects the scene's 3D geometry.
+    The *soft_mask* is used for smooth blending at crop boundaries.
     """
-    pipe = _get_sdxl_pipe()
+    pipe = _get_flux_pipe()
     h, w = image_rgb.shape[:2]
 
-    # Context crop — don't feed 1440×3120 to SD.
+    # Context crop — don't feed full wallpaper resolution to FLUX.
     crop = _compute_context_crop(mask_u8, h, w)
     y0, x0, y1, x1 = crop
 
-    crop_img = Image.fromarray(image_rgb[y0:y1, x0:x1])
     crop_mask = Image.fromarray(mask_u8[y0:y1, x0:x1])
 
-    # If we have a guidance (pre-filled) image, use it as init.
+    # Use CV2-prefilled guidance as init if available, else original.
     if guidance_rgb is not None:
         crop_guide = Image.fromarray(guidance_rgb[y0:y1, x0:x1])
     else:
-        crop_guide = crop_img
+        crop_guide = Image.fromarray(image_rgb[y0:y1, x0:x1])
 
-    # SD needs specific sizes — resize to max 1024 for quality/speed balance.
-    cw, ch = crop_img.size
+    # Build depth control image from our precomputed depth map.
+    if depth_map is not None:
+        depth_crop = depth_map[y0:y1, x0:x1]
+        depth_u8 = (np.clip(depth_crop, 0.0, 1.0) * 255).astype(np.uint8)
+        control_image = Image.fromarray(depth_u8, mode="L").convert("RGB")
+    else:
+        # Fallback: flat mid-gray depth (neutral structural guidance).
+        cw_raw, ch_raw = crop_guide.size
+        control_image = Image.new("RGB", (cw_raw, ch_raw), (128, 128, 128))
+
+    # Resize to max 1024 for quality/speed balance.
+    cw, ch = crop_guide.size
     scale = min(1024 / max(cw, ch), 1.0)
-    sd_w = ((int(cw * scale) + 7) // 8) * 8
-    sd_h = ((int(ch * scale) + 7) // 8) * 8
-    sd_w = max(sd_w, 64)
-    sd_h = max(sd_h, 64)
+    gen_w = ((int(cw * scale) + 7) // 8) * 8
+    gen_h = ((int(ch * scale) + 7) // 8) * 8
+    gen_w = max(gen_w, 64)
+    gen_h = max(gen_h, 64)
 
-    crop_img_resized = crop_img.resize((sd_w, sd_h), Image.LANCZOS)
-    crop_mask_resized = crop_mask.resize((sd_w, sd_h), Image.NEAREST)
-    crop_guide_resized = crop_guide.resize((sd_w, sd_h), Image.LANCZOS)
+    crop_guide_resized = crop_guide.resize((gen_w, gen_h), Image.LANCZOS)
+    crop_mask_resized = crop_mask.resize((gen_w, gen_h), Image.NEAREST)
+    control_resized = control_image.resize((gen_w, gen_h), Image.LANCZOS)
 
     with torch.inference_mode():
         result = pipe(
-            prompt=_SDXL_PROMPT,
-            negative_prompt=_SDXL_NEGATIVE,
+            prompt=_FLUX_PROMPT,
             image=crop_guide_resized,
+            control_image=control_resized,
             mask_image=crop_mask_resized,
             strength=strength,
             guidance_scale=guidance_scale,
@@ -285,24 +285,31 @@ def _inpaint_sdxl(
 def inpaint_background(
     background_image: Image.Image,
     subject_alpha: np.ndarray,
+    depth_map: np.ndarray | None = None,
     method: str = "auto",
 ) -> Image.Image:
     """Fill the hole left by the subject — production tiered pipeline.
 
     Tier resolution (method="auto"):
-        SDXL + CUDA available → two-pass (CV2 guidance → SDXL semantic fix)
-        LaMa installed        → single-pass LaMa (fast, good for textures)
-        Else                  → CV2 Telea fallback
+        FLUX.1 Depth + CUDA → two-pass (CV2 guidance → FLUX depth-aware)
+        LaMa installed      → single-pass LaMa (fast, good for textures)
+        Else                → CV2 Telea fallback
 
-    Pipeline (SDXL path):
+    Pipeline (FLUX path):
         1. Erode mask 3px → resolution-scaled dilate → feather
         2. Pass 1: CV2 Telea rough fill (color/tone guidance, <50ms)
-        3. Pass 2: SDXL inpaint on context-cropped region with CV2 as
-           init image (strength=0.58 → SD fixes semantics, keeps tone)
+        3. Pass 2: FLUX.1 Depth inpaint on context-cropped region with
+           CV2 as init, depth map as control (strength=0.85)
         4. Soft blend at crop paste-back (no rectangular seam)
         5. Secondary feathered blend on full image (safety pass)
 
-    Explicit methods: "sdxl", "lama", "cv2".
+    Parameters
+    ----------
+    depth_map : float32 [0,1] or None
+        Precomputed depth map (0=near, 1=far). Passed to FLUX.1 Depth
+        as structural control so inpainted regions respect scene geometry.
+
+    Explicit methods: "flux", "lama", "cv2".
     """
     bg_rgb = np.array(background_image.convert("RGB"))
     hard_mask, soft_mask = _prepare_mask(subject_alpha)
@@ -312,27 +319,28 @@ def inpaint_background(
             try:
                 import diffusers  # noqa: F401
 
-                method = "sdxl"
+                method = "flux"
             except ImportError:
                 method = "lama"
         else:
             method = "lama"
 
-    if method == "sdxl":
+    if method in ("flux", "sdxl"):  # "sdxl" kept for backward compat
         try:
             # Pass 1: rough CV2 fill for guidance.
             rough_fill = _inpaint_cv2(bg_rgb, hard_mask)
 
-            # Pass 2: SDXL refines semantics using the rough fill as init.
-            # soft_mask is passed in so paste-back uses soft blending.
-            refined = _inpaint_sdxl(
+            # Pass 2: FLUX.1 Depth refines semantics using the rough fill
+            # as init and our depth map as structural control.
+            refined = _inpaint_flux(
                 bg_rgb,
                 hard_mask,
                 soft_mask=soft_mask,
+                depth_map=depth_map,
                 guidance_rgb=rough_fill,
-                strength=0.58,
-                guidance_scale=8.0,
-                num_steps=30,
+                strength=0.85,
+                guidance_scale=10.0,
+                num_steps=28,
             )
 
             # Secondary feathered blend on full image — safety pass
@@ -345,7 +353,7 @@ def inpaint_background(
             return Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8))
 
         except Exception as e:
-            logger.warning("SDXL inpainting failed (%s), falling back to LaMa", e)
+            logger.warning("FLUX inpainting failed (%s), falling back to LaMa", e)
             method = "lama"
 
     if method == "lama":
